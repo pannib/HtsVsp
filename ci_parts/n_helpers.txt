@@ -1,0 +1,97 @@
+//
+// Receive engine. Socket data is drained into a ring buffer on FD_READ and
+// read IRPs are satisfied from the ring, so data arrival and read requests
+// are fully decoupled (any ordering works).
+//
+
+// Pull every byte currently available from the socket into the receive ring.
+static void DrainSocketToRing(PDEVICE_CONTEXT deviceContext)
+{
+    char tmp[512];
+    for (;;) {
+        int n = recv(deviceContext->ClientSocket, tmp, sizeof(tmp), 0);
+        if (n > 0) {
+            deviceContext->Stats.bytesRead += n;
+            deviceContext->Stats.sockRecvData++;
+            RingBufferWrite(&deviceContext->ReadRing, (BYTE*)tmp, (size_t)n);
+        }
+        else if (n == 0) {
+            // peer closed the connection gracefully.
+            break;
+        }
+        else {
+            int e = WSAGetLastError();
+            if (e == WSAEWOULDBLOCK) break;
+            Trace(TRACE_LEVEL_ERROR, "drain recv error %#x", e);
+            break;
+        }
+    }
+}
+
+// Complete a parked IOCTL_SERIAL_WAIT_ON_MASK with SERIAL_EV_RXCHAR.
+static void SignalWaitMask(PDEVICE_CONTEXT deviceContext)
+{
+    WDFREQUEST maskRequest;
+    NTSTATUS s = WdfIoQueueRetrieveNextRequest(
+        deviceContext->PendingWaitMaskQueue, &maskRequest);
+    if (NT_SUCCESS(s)) {
+        PVOID outBuf = NULL;
+        s = WdfRequestRetrieveOutputBuffer(maskRequest, sizeof(ULONG), &outBuf, NULL);
+        if (NT_SUCCESS(s) && outBuf) {
+            *(ULONG*)outBuf = SERIAL_EV_RXCHAR;
+            WdfRequestCompleteWithInformation(maskRequest, STATUS_SUCCESS, sizeof(ULONG));
+        }
+        else {
+            WdfRequestComplete(maskRequest, STATUS_UNSUCCESSFUL);
+        }
+    }
+}
+
+// Stop the read timers and complete the currently held read IRP.
+static void FinishCurrent(PDEVICE_CONTEXT deviceContext, NTSTATUS status, ULONG info)
+{
+    WdfTimerStop(deviceContext->IntervalTimer, FALSE);
+    WdfTimerStop(deviceContext->TotalTimer, FALSE);
+    WdfRequestCompleteWithInformation(deviceContext->CurrentRequest, status, info);
+    deviceContext->CurrentRequest = NULL;
+}
+
+// Move bytes from the ring into the held IRP; complete it per the read policy.
+static void SatisfyFromRing(PDEVICE_CONTEXT deviceContext)
+{
+    if (!deviceContext->CurrentRequest) return;
+    PREQUEST_CONTEXT requestContext = GetRequestContext(deviceContext->CurrentRequest);
+
+    size_t avail = 0;
+    RingBufferGetAvailableData(&deviceContext->ReadRing, &avail);
+    if (avail == 0) return;
+
+    ULONG want = requestContext->Length - requestContext->Information;
+    size_t copied = 0;
+    if (want > 0) {
+        RingBufferRead(&deviceContext->ReadRing,
+            (BYTE*)requestContext->Buffer + requestContext->Information,
+            (size_t)want, &copied);
+        requestContext->Information += (ULONG)copied;
+        deviceContext->NumberNeededForRead -= (ULONG)copied;
+    }
+
+    BOOLEAN complete = deviceContext->returnWithWhatsPresent
+        || (deviceContext->NumberNeededForRead == 0)
+        || (deviceContext->os2ssreturn && requestContext->Information > 0);
+    if (complete || want == 0) {
+        FinishCurrent(deviceContext, STATUS_SUCCESS, requestContext->Information);
+    }
+}
+
+// A read timer (or the poll-timeout fallback) fired: return what we already have.
+static void TimeoutCurrent(PDEVICE_CONTEXT deviceContext)
+{
+    if (!deviceContext->CurrentRequest) return;
+    SatisfyFromRing(); // flush any buffered bytes into the IRP first.
+    if (deviceContext->CurrentRequest) {
+        PREQUEST_CONTEXT requestContext = GetRequestContext(deviceContext->CurrentRequest);
+        NTSTATUS status = requestContext->Information > 0 ? STATUS_SUCCESS : STATUS_TIMEOUT;
+        FinishCurrent(deviceContext, status, requestContext->Information);
+    }
+}
