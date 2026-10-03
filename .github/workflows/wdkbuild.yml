@@ -49,7 +49,14 @@ jobs:
         try {
           $staging = "$env:RUNNER_TEMP\stage"
           New-Item -ItemType Directory -Force $staging | Out-Null
-          $files = Get-ChildItem -Path "ComPort","App" -Recurse -File -ErrorAction Stop | Where-Object { $_.Extension -in ".dll",".exe",".inf",".cat",".pdb",".sys",".inx",".cer" }
+          # htsCommon.props redirects the final OutDir to repo-root bin/<Config>/<Platform>/,
+          # so the linked HtsVsp.dll / vspControl.exe live under "bin", not ComPort/App.
+          $searchPaths = @("ComPort", "App")
+          if (Test-Path "bin") {
+            $searchPaths += "bin"
+            Get-ChildItem "bin" -Recurse -File | ForEach-Object { Write-Host "BINFILE $($_.FullName.Replace($env:GITHUB_WORKSPACE, '')) $($_.Length)" }
+          }
+          $files = Get-ChildItem -Path $searchPaths -Recurse -File -ErrorAction Stop | Where-Object { $_.Extension -in ".dll",".exe",".inf",".cat",".pdb",".sys",".inx",".cer" }
           $files | ForEach-Object { Write-Host "ART $($_.FullName.Replace($env:GITHUB_WORKSPACE, '')) $($_.Length)" }
           if (-not $files) { Write-Host "::error::No artifacts found"; exit 1 }
           foreach ($f in $files) {
@@ -60,6 +67,7 @@ jobs:
           $devcon = ".\packages\Microsoft.Windows.WDK.x64.10.0.28000.2526\c\tools\10.0.28000.0\x64\devcon.exe"
           Copy-Item $devcon "$staging\devcon.exe"
           Write-Host "STAGE files: $((Get-ChildItem $staging -File).Count)"
+          Get-ChildItem $staging -File | ForEach-Object { Write-Host "STAGED $($_.Name) $($_.Length)" }
           Compress-Archive -Path "$staging\*" -DestinationPath "$env:RUNNER_TEMP\htsvsp-build.zip" -Force
           Write-Host "PACK $((Get-Item "$env:RUNNER_TEMP\htsvsp-build.zip").Length) bytes"
         } catch {
