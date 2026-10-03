@@ -1,0 +1,14 @@
+    deviceContext->TerminateThread = false;
+
+    //
+    // Fresh connection: empty the receive ring and pending RX signal count.
+    //
+    RingBufferInitialize(&deviceContext->ReadRing,
+        deviceContext->ReadRingStorage, RX_RING_SIZE);
+    deviceContext->PendingRxSignals = 0;
+
+    int result = WinSockCreate(&deviceContext->ServiceSocket);
+    if (result != NO_ERROR) {
+        Trace(TRACE_LEVEL_ERROR, "ServiceSocket create error: %#x", result);
+        goto cleanup;
+    }
