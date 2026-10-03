@@ -221,6 +221,84 @@ RequestCopyToBuffer(
     return status;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+//
+// Additional serial types and constants copied from ntddser.h (the subset
+// below is not declared in serial.h). Required so that common Win32 serial
+// APIs - GetCommProperties / GetCommModemStatus / GetCommStatus - succeed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+typedef struct _HTS_SERIAL_COMMPROP {
+    USHORT PacketLength;
+    USHORT PacketVersion;
+    ULONG  ServiceMask;
+    ULONG  Reserved1;
+    ULONG  MaxTxQueue;
+    ULONG  MaxRxQueue;
+    ULONG  MaxBaud;
+    ULONG  ProvSubType;
+    ULONG  ProvCapabilities;
+    ULONG  SettableParams;
+    ULONG  SettableBaud;
+    USHORT SettableData;
+    USHORT SettableStopParity;
+    ULONG  CurrentTxQueue;
+    ULONG  CurrentRxQueue;
+    ULONG  ProvSpec1;
+    ULONG  ProvSpec2;
+    WCHAR  ProvChar[1];
+} HTS_SERIAL_COMMPROP;
+
+typedef struct _HTS_SERIAL_STATUS {
+    ULONG   Errors;
+    ULONG   HoldReasons;
+    ULONG   AmountInInQueue;
+    ULONG   AmountInOutQueue;
+    BOOLEAN EofReceived;
+    BOOLEAN WaitForImmediate;
+} HTS_SERIAL_STATUS;
+
+#define HTS_SP_SERIALCOMM       ((ULONG)0x00000001)
+#define HTS_PST_RS232           ((ULONG)0x00000001)
+#define HTS_BAUD_USER           ((ULONG)0x40000000)
+
+#define HTS_PCF_TOTALTIMEOUTS   ((ULONG)0x00000040)
+#define HTS_PCF_INTTIMEOUTS     ((ULONG)0x00000080)
+#define HTS_PCF_SPECIALCHARS    ((ULONG)0x00000100)
+#define HTS_PCF_16BITMODE       ((ULONG)0x00000200)
+
+#define HTS_SP_BAUD             ((ULONG)0x00000001)
+#define HTS_SP_PARITY           ((ULONG)0x00000002)
+#define HTS_SP_DATABITS         ((ULONG)0x00000004)
+#define HTS_SP_STOPBITS         ((ULONG)0x00000008)
+#define HTS_SP_HANDSHAKING      ((ULONG)0x00000010)
+#define HTS_SP_PARITY_CHECK     ((ULONG)0x00000020)
+#define HTS_SP_CARRIER          ((ULONG)0x00000040)
+
+#define HTS_DATABITS_5          ((USHORT)0x0001)
+#define HTS_DATABITS_6          ((USHORT)0x0002)
+#define HTS_DATABITS_7          ((USHORT)0x0004)
+#define HTS_DATABITS_8          ((USHORT)0x0008)
+
+#define HTS_STOPBITS_10         ((USHORT)0x0001)
+#define HTS_STOPBITS_15         ((USHORT)0x0002)
+#define HTS_STOPBITS_20         ((USHORT)0x0004)
+#define HTS_PARITY_NONE         ((USHORT)0x0100)
+#define HTS_PARITY_ODD          ((USHORT)0x0200)
+#define HTS_PARITY_EVEN         ((USHORT)0x0400)
+#define HTS_PARITY_MARK         ((USHORT)0x0800)
+#define HTS_PARITY_SPACE        ((USHORT)0x1000)
+
+#define HTS_SP_PARITY_SER       ((ULONG)0x00000001)
+
+#define HTS_MS_CTS_ON           ((ULONG)0x00000010)
+#define HTS_MS_DSR_ON           ((ULONG)0x00000020)
+#define HTS_MS_RLSD_ON          ((ULONG)0x00000080)
+
+#define HTS_SERIAL_DTR_STATE    ((ULONG)0x00000001)
+#define HTS_SERIAL_RTS_STATE    ((ULONG)0x00000002)
+
 PCHAR
 SerialGetIoctlName(
     IN ULONG      IoControlCode
@@ -414,7 +492,7 @@ EvtIoDeviceControl(
 
     case IOCTL_SERIAL_GET_MODEM_CONTROL:
     {
-        ULONG *modemControlRegister = GetModemControlRegisterPtr(deviceContext);
+        ULONG *modemControlRegister = GetModemControlRegister();
 
         ASSERT(modemControlRegister);
 
@@ -566,8 +644,66 @@ EvtIoDeviceControl(
         break;
     }
 
+    case IOCTL_SERIAL_GET_PROPERTIES:
+    {
+        //
+        // Report the capabilities of this virtual serial port.
+        //
+        HTS_SERIAL_COMMPROP commProp = {0};
+        commProp.PacketLength       = (USHORT)sizeof(HTS_SERIAL_COMMPROP);
+        commProp.PacketVersion      = 0x0200;
+        commProp.ServiceMask        = HTS_SP_SERIALCOMM;
+        commProp.MaxTxQueue         = 0;
+        commProp.MaxRxQueue         = 0;
+        commProp.MaxBaud            = HTS_BAUD_USER;
+        commProp.ProvSubType        = HTS_PST_RS232;
+        commProp.ProvCapabilities   = HTS_PCF_TOTALTIMEOUTS | HTS_PCF_INTTIMEOUTS
+                                    | HTS_PCF_SPECIALCHARS | HTS_PCF_16BITMODE;
+        commProp.SettableParams     = HTS_SP_BAUD | HTS_SP_PARITY | HTS_SP_DATABITS
+                                    | HTS_SP_STOPBITS | HTS_SP_HANDSHAKING
+                                    | HTS_SP_PARITY_CHECK | HTS_SP_CARRIER;
+        commProp.SettableBaud       = HTS_BAUD_USER;
+        commProp.SettableData       = HTS_DATABITS_5 | HTS_DATABITS_6
+                                    | HTS_DATABITS_7 | HTS_DATABITS_8;
+        commProp.SettableStopParity = HTS_STOPBITS_10 | HTS_STOPBITS_15 | HTS_STOPBITS_20
+                                    | HTS_PARITY_NONE | HTS_PARITY_ODD | HTS_PARITY_EVEN
+                                    | HTS_PARITY_MARK | HTS_PARITY_SPACE;
+        commProp.CurrentTxQueue     = 0;
+        commProp.CurrentRxQueue     = 0;
+        commProp.ProvSpec1          = HTS_SP_PARITY_SER;
+        commProp.ProvSpec2          = 0;
+        status = RequestCopyFromBuffer(Request, &commProp, sizeof(commProp));
+        break;
+    }
+
+    case IOCTL_SERIAL_GET_MODEMSTATUS:
+    {
+        //
+        // No real hardware: report CTS/DSR/RLSD permanently asserted so
+        // applications that gate on carrier see the port as connected.
+        //
+        ULONG modemStatus = HTS_MS_CTS_ON | HTS_MS_DSR_ON | HTS_MS_RLSD_ON;
+        status = RequestCopyFromBuffer(Request, &modemStatus, sizeof(modemStatus));
+        break;
+    }
+
+    case IOCTL_SERIAL_GET_COMMSTATUS:
+    {
+        HTS_SERIAL_STATUS serialStatus = {0};
+        status = RequestCopyFromBuffer(Request, &serialStatus, sizeof(serialStatus));
+        break;
+    }
+
+    case IOCTL_SERIAL_GET_DTRRTS:
+    {
+        ULONG dtrRts = HTS_SERIAL_DTR_STATE | HTS_SERIAL_RTS_STATE;
+        status = RequestCopyFromBuffer(Request, &dtrRts, sizeof(dtrRts));
+        break;
+    }
+
     case IOCTL_SERIAL_SET_QUEUE_SIZE:
     case IOCTL_SERIAL_SET_DTR:
+    case IOCTL_SERIAL_CLR_DTR:
     case IOCTL_SERIAL_SET_RTS:
     case IOCTL_SERIAL_CLR_RTS:
     case IOCTL_SERIAL_SET_XON:
@@ -576,6 +712,12 @@ EvtIoDeviceControl(
     case IOCTL_SERIAL_GET_CHARS:
     case IOCTL_SERIAL_GET_HANDFLOW:
     case IOCTL_SERIAL_SET_HANDFLOW:
+    case IOCTL_SERIAL_PURGE:
+    case IOCTL_SERIAL_SET_BREAK_ON:
+    case IOCTL_SERIAL_SET_BREAK_OFF:
+    case IOCTL_SERIAL_IMMEDIATE_CHAR:
+    case IOCTL_SERIAL_XOFF_COUNTER:
+    case IOCTL_SERIAL_LSRMST_INSERT:
     case IOCTL_SERIAL_RESET_DEVICE:
         //
         // NOTE: The application expects STATUS_SUCCESS for these IOCTLs.
@@ -600,7 +742,7 @@ EvtIoDeviceControl(
 VOID
 EvtIoWrite(
     _In_  WDFQUEUE          Queue,
-    _In_  WDFREQUEST        Request,
+    _In_ WDFREQUEST        Request,
     _In_  size_t            Length
     )
 {
@@ -704,7 +846,7 @@ Arguments:
 
     Length - Length of the IO operation
                  The default property of the queue is to not dispatch
-                 zero lenght read & write requests to the driver and
+                 zero lenght read & write requests to the app
                  complete is with status success. So we will never get
                  a zero length request.
 --*/
@@ -764,8 +906,8 @@ Arguments:
 
             if (! QueueContext->IgnoreNextChar) {
                 //
-                //  the last char was not a special char
-                //  check for CONNECT command
+                // the last char was not a special char
+                // check for CONNECT command
                 //
                 if ((currentCharacter == 'A') || (currentCharacter == 'a')) {
                     QueueContext->ConnectCommand = TRUE;
