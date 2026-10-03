@@ -31,7 +31,7 @@ DWORD ClientThread(PVOID context)
                 deviceContext->CurrentRequest = readRequest;
                 deviceContext->Stats.readDequeue++;
                 calculateReadTimers(deviceContext);
-                SatisfyFromRing(); // data may already be buffered.
+                SatisfyFromRing(deviceContext); // data may already be buffered.
             }
         }
 
@@ -77,7 +77,7 @@ DWORD ClientThread(PVOID context)
                 DrainSocketToRing(deviceContext);
                 deviceContext->PendingRxSignals++;
                 SignalWaitMask(deviceContext);
-                SatisfyFromRing();
+                SatisfyFromRing(deviceContext);
             }
             break;
         }
