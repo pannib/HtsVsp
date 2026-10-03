@@ -76,7 +76,7 @@ Apply-Literal "ComPort\device.h" @'
 '@ "D2 device ring fields"
 
 # ---------- serial.h : SERIAL_EV_* wait event bits ----------
-Apply-Literal "ComPort\serial.h" "`n`n`ntypedef struct _SERIAL_BAUD_RATE_COUNT {" ("`n`n" + (Part "s_events.txt") + "`n`n`ntypedef struct _SERIAL_BAUD_RATE {") "S1 serial event bits"
+Apply-Literal "ComPort\serial.h" "`n`n`ntypedef struct _SERIAL_BAUD_RATE {" ("`n`n" + (Part "s_events.txt") + "`n`n`ntypedef struct _SERIAL_BAUD_RATE {") "S1 serial event bits"
 
 # ---------- network.cpp ----------
 Apply-Literal "ComPort\network.cpp" '            TerminateThread(deviceContext->ThreadEvent, 1);' '            TerminateThread(deviceContext->ThreadHandle, 1);' "N1 TerminateThread handle"
