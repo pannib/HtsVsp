@@ -282,10 +282,19 @@ Apply-Literal "ComPort\queue.cpp" @'
         Trace(TRACE_LEVEL_INFO, "wait units set to %d", Globals.WaitUnits);
         break;
     }
-'@ ("    case IOCTL_HTSVSP_SET_WAIT_UNITS:`n    {`n        status = RequestCopyToBuffer(Request, &Globals.WaitUnits, sizeof(Globals.WaitUnits));`n        Trace(TRACE_LEVEL_INFO, `"wait units set to %d`", Globals.WaitUnits);`n        break;
-    }`n`n" + (Part "q_dbg_getcase.txt")) "Q8 GET_DBG case"
+'@ ("    case IOCTL_HTSVSP_SET_WAIT_UNITS:`n    {`n        status = RequestCopyToBuffer(Request, &Globals.WaitUnits, sizeof(Globals.WaitUnits));`n        Trace(TRACE_LEVEL_INFO, `"wait units set to %d`", Globals.WaitUnits);`n        break;`n    }`n`n" + (Part "q_dbg_getcase.txt")) "Q8 GET_DBG case"
 
 # ---------- network.cpp : SignalWaitMask diagnostic ----------
 Apply-Regex "ComPort\network.cpp" '(?s)// Complete a parked IOCTL_SERIAL_WAIT_ON_MASK with SERIAL_EV_RXCHAR\.\nstatic void SignalWaitMask\(PDEVICE_CONTEXT deviceContext\)\n\{.*?\n\}(?=\n\n// Stop the read timers)' (Part "n_dbg_signal.txt") "N7 signal diagnostic"
+
+# ---------- queue.cpp : GET_COMMSTATUS must report bytes held in the receive ring ----------
+Apply-Literal "ComPort\queue.cpp" @'
+    case IOCTL_SERIAL_GET_COMMSTATUS:
+    {
+        HTS_SERIAL_STATUS serialStatus = {0};
+        status = RequestCopyFromBuffer(Request, &serialStatus, sizeof(serialStatus));
+        break;
+    }
+'@ (Part "q_commstatus.txt") "Q9 commstatus queued bytes"
 
 [Console]::WriteLine("ALL PATCHES APPLIED")
