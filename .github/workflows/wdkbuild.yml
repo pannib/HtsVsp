@@ -60,28 +60,10 @@ jobs:
     - name: Publish Release
       shell: powershell
       run: |
-        Write-Host "TOKEN_LEN=$($env:GITHUB_TOKEN.Length)"
-        Write-Host "REPO=$env:GITHUB_REPOSITORY RUN=$env:GITHUB_RUN_NUMBER"
+        Write-Host "::warning::TOKEN_LEN=$($env:GITHUB_TOKEN.Length)"
         $tag = "debug-build-$env:GITHUB_RUN_NUMBER"
-        $headers = @{ Authorization = "token $env:GITHUB_TOKEN"; "User-Agent" = "doubao-ci" }
-        $rel = $null
-        try {
-          $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/$env:GITHUB_REPOSITORY/releases/tags/$tag" -Headers $headers -TimeoutSec 30
-          Write-Host "GOT existing release $tag"
-        } catch {
-          Write-Host "GET failed: $($_.Exception.Message)"
-          $body = @{ tag_name = $tag; name = "Debug Build $env:GITHUB_RUN_NUMBER"; body = "Automated debug build." } | ConvertTo-Json
-          try {
-            $rel = Invoke-RestMethod -Method Post -Uri "https://api.github.com/repos/$env:GITHUB_REPOSITORY/releases" -Headers $headers -Body $body -ContentType "application/json" -TimeoutSec 30
-            Write-Host "POST created release $tag"
-          } catch {
-            Write-Host "::error::POST failed: $($_.Exception.Message)"
-            exit 1
-          }
-        }
-        $uploadBase = ($rel.upload_url -replace '\{[^}]*\}', '')
-        Write-Host "UPLOAD_URL=$uploadBase"
-        $f = "$env:RUNNER_TEMP\htsvsp-build.zip"
-        curl.exe -sS -X POST -H "Authorization: token $env:GITHUB_TOKEN" -H "Content-Type: application/octet-stream" --data-binary "@$f" "$uploadBase?name=htsvsp-build.zip"
-        Write-Host "CURL_EXIT=$LASTEXITCODE"
-        if ($LASTEXITCODE -ne 0) { Write-Host "::error::upload failed exit=$LASTEXITCODE"; exit $LASTEXITCODE }
+        $zip = "$env:RUNNER_TEMP\htsvsp-build.zip"
+        gh release create $tag $zip --repo $env:GITHUB_REPOSITORY --title "Debug Build $env:GITHUB_RUN_NUMBER" --notes "Automated debug build for WPF-VSPD integration." --clobber
+        $code = $LASTEXITCODE
+        Write-Host "GH_EXIT=$code"
+        if ($code -ne 0) { Write-Host "::error::gh release create failed exit=$code"; exit $code }
