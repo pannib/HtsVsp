@@ -88,7 +88,7 @@ static void SatisfyFromRing(PDEVICE_CONTEXT deviceContext)
 static void TimeoutCurrent(PDEVICE_CONTEXT deviceContext)
 {
     if (!deviceContext->CurrentRequest) return;
-    SatisfyFromRing(); // flush any buffered bytes into the IRP first.
+    SatisfyFromRing(deviceContext); // flush any buffered bytes into the IRP first.
     if (deviceContext->CurrentRequest) {
         PREQUEST_CONTEXT requestContext = GetRequestContext(deviceContext->CurrentRequest);
         NTSTATUS status = requestContext->Information > 0 ? STATUS_SUCCESS : STATUS_TIMEOUT;
