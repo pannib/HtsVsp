@@ -16,6 +16,23 @@ jobs:
         submodules: 'true'
         fetch-depth: 0
 
+    - name: Checkout Upstream Sources
+      uses: actions/checkout@v4
+      with:
+        repository: HollisTech/HtsVsp
+        path: upstream
+        fetch-depth: 1
+
+    - name: Restore Pristine Driver Sources
+      shell: powershell
+      run: |
+        $ErrorActionPreference = "Stop"
+        Remove-Item ComPort -Recurse -Force
+        Remove-Item inc -Recurse -Force
+        Copy-Item "upstream\ComPort" "ComPort" -Recurse
+        Copy-Item "upstream\inc" "inc" -Recurse
+        Write-Host "Restored pristine ComPort and inc from upstream"
+
     - name: Apply Source Patch
       working-directory: ${{env.GITHUB_WORKSPACE}}
       shell: powershell
