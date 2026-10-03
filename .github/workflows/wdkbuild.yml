@@ -46,29 +46,36 @@ jobs:
       working-directory: ${{env.GITHUB_WORKSPACE}}
       shell: powershell
       run: |
-        Write-Host "=== ComPort\x64\Debug ==="
-        Get-ChildItem "ComPort\x64\Debug" -ErrorAction SilentlyContinue | ForEach-Object { Write-Host $_.Name }
-        Write-Host "=== vspControl\x64\Debug ==="
-        Get-ChildItem "App\vspControl\x64\Debug" -ErrorAction SilentlyContinue | ForEach-Object { Write-Host $_.Name }
-        Compress-Archive -Path "ComPort\x64\Debug\*" -DestinationPath "$env:RUNNER_TEMP\htsvsp-driver.zip" -Force
-        Compress-Archive -Path "App\vspControl\x64\Debug\*" -DestinationPath "$env:RUNNER_TEMP\vspcontrol.zip" -Force
-        Get-Item "$env:RUNNER_TEMP\htsvsp-driver.zip","$env:RUNNER_TEMP\vspcontrol.zip" | ForEach-Object { Write-Host "PACK $($_.Name) $($_.Length) bytes" }
+        try {
+          $files = Get-ChildItem -Path "ComPort","App" -Recurse -File -ErrorAction Stop | Where-Object { $_.Extension -in ".dll",".exe",".inf",".cat",".pdb",".sys",".inx",".cer" }
+          $files | ForEach-Object { Write-Host "ART $($_.FullName.Replace($env:GITHUB_WORKSPACE, '')) $($_.Length)" }
+          if (-not $files) { Write-Host "::error::No artifacts found"; exit 1 }
+          Compress-Archive -Path $files.FullName -DestinationPath "$env:RUNNER_TEMP\htsvsp-build.zip" -Force
+          Write-Host "PACK $(Get-Item "$env:RUNNER_TEMP\htsvsp-build.zip").Length bytes"
+        } catch {
+          Write-Host "::error::Package step error: $($_.Exception.Message)"
+          exit 1
+        }
 
     - name: Publish Release
       shell: powershell
       run: |
-        $tag = "debug-build-$env:GITHUB_RUN_NUMBER"
-        $headers = @{ Authorization = "Bearer $env:GITHUB_TOKEN" }
         try {
-          $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/$env:GITHUB_REPOSITORY/releases/tags/$tag" -Headers $headers -TimeoutSec 30
-        } catch {
-          $body = @{ tag_name = $tag; name = "Debug Build $env:GITHUB_RUN_NUMBER"; body = "Automated debug build for WPF-VSPD integration." } | ConvertTo-Json
-          $rel = Invoke-RestMethod -Method Post -Uri "https://api.github.com/repos/$env:GITHUB_REPOSITORY/releases" -Headers $headers -Body $body -ContentType "application/json" -TimeoutSec 30
-        }
-        $uploadBase = ($rel.upload_url -replace '\{[^}]*\}', '')
-        foreach ($f in @("$env:RUNNER_TEMP\htsvsp-driver.zip", "$env:RUNNER_TEMP\vspcontrol.zip")) {
-          $name = Split-Path $f -Leaf
+          $tag = "debug-build-$env:GITHUB_RUN_NUMBER"
+          $headers = @{ Authorization = "Bearer $env:GITHUB_TOKEN" }
+          try {
+            $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/$env:GITHUB_REPOSITORY/releases/tags/$tag" -Headers $headers -TimeoutSec 30
+          } catch {
+            $body = @{ tag_name = $tag; name = "Debug Build $env:GITHUB_RUN_NUMBER"; body = "Automated debug build for WPF-VSPD integration." } | ConvertTo-Json
+            $rel = Invoke-RestMethod -Method Post -Uri "https://api.github.com/repos/$env:GITHUB_REPOSITORY/releases" -Headers $headers -Body $body -ContentType "application/json" -TimeoutSec 30
+          }
+          $uploadBase = ($rel.upload_url -replace '\{[^}]*\}', '')
+          $f = "$env:RUNNER_TEMP\htsvsp-build.zip"
+          $name = "htsvsp-build.zip"
           curl.exe -sS -X POST -H "Authorization: Bearer $env:GITHUB_TOKEN" -H "Content-Type: application/octet-stream" --data-binary "@$f" "$uploadBase?name=$name"
-          if ($LASTEXITCODE -ne 0) { Write-Host "::error::upload failed $name"; exit 1 }
+          if ($LASTEXITCODE -ne 0) { Write-Host "::error::upload failed"; exit 1 }
           Write-Host "UPLOADED $name"
+        } catch {
+          Write-Host "::error::Publish error: $($_.Exception.Message)"
+          exit 1
         }
