@@ -1,0 +1,26 @@
+// Complete a parked IOCTL_SERIAL_WAIT_ON_MASK with SERIAL_EV_RXCHAR.
+static void SignalWaitMask(PDEVICE_CONTEXT deviceContext)
+{
+    WDFREQUEST maskRequest;
+    deviceContext->Dbg.sigCalls++;
+    NTSTATUS s = WdfIoQueueRetrieveNextRequest(
+        deviceContext->PendingWaitMaskQueue, &maskRequest);
+    if (NT_SUCCESS(s)) {
+        deviceContext->Dbg.sigGot++;
+        PVOID outBuf = NULL;
+        s = WdfRequestRetrieveOutputBuffer(maskRequest, sizeof(ULONG), &outBuf, NULL);
+        if (NT_SUCCESS(s) && outBuf) {
+            *(ULONG*)outBuf = SERIAL_EV_RXCHAR;
+            deviceContext->Dbg.sigBufOk++;
+            WdfRequestCompleteWithInformation(maskRequest, STATUS_SUCCESS, sizeof(ULONG));
+        }
+        else {
+            deviceContext->Dbg.sigBufFail++;
+            deviceContext->Dbg.lastSigBufFailStatus = (ULONG)s;
+            WdfRequestComplete(maskRequest, STATUS_UNSUCCESSFUL);
+        }
+    }
+    else {
+        deviceContext->Dbg.sigEmpty++;
+    }
+}

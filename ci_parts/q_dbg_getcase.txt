@@ -1,0 +1,15 @@
+    case IOCTL_HTSVSP_GET_DBG:
+    {
+        PVOID dbgBuf = NULL;
+        NTSTATUS rs = WdfRequestRetrieveOutputBuffer(
+                            Request, sizeof(HTS_VSP_DBG), &dbgBuf, NULL);
+        if (NT_SUCCESS(rs) && dbgBuf) {
+            RtlCopyMemory(dbgBuf, &deviceContext->Dbg, sizeof(HTS_VSP_DBG));
+            WdfRequestCompleteWithInformation(
+                            Request, STATUS_SUCCESS, sizeof(HTS_VSP_DBG));
+        }
+        else {
+            WdfRequestComplete(Request, rs);
+        }
+        return;
+    }

@@ -1,0 +1,26 @@
+// Low-level diagnostic counters used to trace the WAIT_ON_MASK / SET_WAIT_MASK
+// path against the real System.IO.Ports.SerialPort event loop. Counters are
+// device-scoped and accumulate for the life of the device; take deltas.
+struct HTS_VSP_DBG
+{
+	ULONGLONG ctlByFunc[40];   // arrivals in EvtIoDeviceControl indexed by IOCTL function (0..39)
+
+	ULONGLONG q3Arrivals;      // IOCTL_SERIAL_WAIT_ON_MASK reached the switch
+	ULONGLONG q3Imm;           // completed immediately because ring had data
+	ULONGLONG q3ImmBufFail;    // immediate path failed to retrieve output buffer
+	ULONGLONG q3FwdOk;         // forwarded into WaitMaskQueue successfully
+	ULONGLONG q3FwdFail;       // forward failed (request completed with status)
+
+	ULONGLONG set17;           // IOCTL_SERIAL_SET_WAIT_MASK arrivals
+	ULONGLONG set17Yanked;     // set-wait-mask found and completed a pending wait
+
+	ULONGLONG sigCalls;        // SignalWaitMask entered
+	ULONGLONG sigGot;          // retrieved a pending wait request
+	ULONGLONG sigEmpty;        // no pending wait request present
+	ULONGLONG sigBufOk;        // wrote RXCHAR and completed successfully
+	ULONGLONG sigBufFail;      // retrieved request but output buffer retrieval failed
+
+	ULONG     lastFwdFailStatus;
+	ULONG     lastSigBufFailStatus;
+};
+typedef HTS_VSP_DBG* PHTS_VSP_DBG;
