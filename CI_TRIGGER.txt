@@ -1,0 +1,1 @@
+CI trigger after enabling Actions for WPF-VSPD integration.
