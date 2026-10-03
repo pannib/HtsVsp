@@ -76,43 +76,22 @@ jobs:
           ${{ runner.temp }}/htsvsp-build.zip
         if-no-files-found: error
 
-    - name: Publish Release
+    - name: Commit Build Output to Main
+      working-directory: ${{env.GITHUB_WORKSPACE}}
       shell: powershell
-      env:
-        GH_TOKEN: ${{ github.token }}
       run: |
-        $log = "$env:RUNNER_TEMP\publish.log"
-        Set-Content -Path $log -Value "start $(Get-Date -Format o)" -Encoding UTF8
-        try {
-          $tag = "debug-build-$env:GITHUB_RUN_NUMBER"
-          $zip = "$env:RUNNER_TEMP\htsvsp-build.zip"
-          gh release create $tag $zip --repo $env:GITHUB_REPOSITORY --title "Debug Build $env:GITHUB_RUN_NUMBER" --notes "Automated debug build." 2>&1 | Tee-Object -FilePath $log -Append | Out-Null
-          $ghCode = $LASTEXITCODE
-          Add-Content -Path $log -Value "gh_code=$ghCode" -Encoding UTF8
-          if ($ghCode -eq 0) {
-            Add-Content -Path $log -Value "RELEASE_OK" -Encoding UTF8
-            Write-Host "RELEASE_OK $tag"
-          } else {
-            Add-Content -Path $log -Value "FALLBACK_PUSH" -Encoding UTF8
-            Copy-Item $zip "$env:GITHUB_WORKSPACE\htsvsp-build.zip" -Force
-            git config user.name "pannib"
-            git config user.email "15039500683@163.com"
-            git checkout -B build-output 2>&1 | Out-Null
-            git add -f htsvsp-build.zip 2>&1 | Out-Null
-            git -c user.name="pannib" -c user.email="15039500683@163.com" commit -m "artifacts run $env:GITHUB_RUN_NUMBER" 2>&1 | Out-Null
-            git push origin build-output --force 2>&1 | Tee-Object -FilePath $log -Append | Out-Null
-            $pushCode = $LASTEXITCODE
-            Add-Content -Path $log -Value "push_code=$pushCode" -Encoding UTF8
-            if ($pushCode -ne 0) {
-              $err = Get-Content $log -Raw -Encoding UTF8
-              Write-Host "::error::$($err.Substring([Math]::Max(0, $err.Length - 3000)))"
-              exit 1
-            }
-            Add-Content -Path $log -Value "PUSHED" -Encoding UTF8
-            Write-Host "PUSHED build-output"
-          }
-        } catch {
-          $err = Get-Content $log -Raw -Encoding UTF8
-          Write-Host "::error::EXC $($_.Exception.Message) :: $($err.Substring([Math]::Max(0, $err.Length - 3000)))"
-          exit 1
-        }
+        $dst = "$env:GITHUB_WORKSPACE\build-output"
+        if (Test-Path $dst) { Remove-Item $dst -Recurse -Force }
+        New-Item -ItemType Directory -Force $dst | Out-Null
+        Copy-Item "$env:RUNNER_TEMP\stage\*" $dst -Force
+        Copy-Item "$env:RUNNER_TEMP\htsvsp-build.zip" "$dst\htsvsp-build.zip" -Force
+        git config user.name "pannib"
+        git config user.email "15039500683@163.com"
+        git add build-output
+        git status --short
+        git commit -m "build output run $env:GITHUB_RUN_NUMBER [skip ci]"
+        if ($LASTEXITCODE -ne 0) { Write-Host "::error::nothing committed or commit failed"; exit 1 }
+        $pushUrl = "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
+        git push $pushUrl HEAD:main
+        if ($LASTEXITCODE -ne 0) { Write-Host "::error::git push failed exit=$LASTEXITCODE"; exit $LASTEXITCODE }
+        Write-Host "COMMIT_PUSHED build-output to main"
