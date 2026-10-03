@@ -1,0 +1,40 @@
+    case IOCTL_SERIAL_WAIT_ON_MASK:
+    {
+        //
+        // If receive data is already buffered, complete immediately with
+        // RXCHAR. Otherwise park the request in the manual queue; the
+        // ClientThread completes it when FD_READ drains new data.
+        //
+        size_t avail = 0;
+        RingBufferGetAvailableData(&deviceContext->ReadRing, &avail);
+
+        if (avail > 0) {
+            PVOID outBuf = NULL;
+            NTSTATUS rs = WdfRequestRetrieveOutputBuffer(
+                                Request, sizeof(ULONG), &outBuf, NULL);
+            if (NT_SUCCESS(rs) && outBuf) {
+                *(ULONG*)outBuf = SERIAL_EV_RXCHAR;
+                if (deviceContext->PendingRxSignals)
+                    deviceContext->PendingRxSignals--;
+                WdfRequestCompleteWithInformation(
+                                Request, STATUS_SUCCESS, sizeof(ULONG));
+            }
+            else {
+                WdfRequestComplete(Request, STATUS_UNSUCCESSFUL);
+            }
+        }
+        else
+        {
+            status = WdfRequestForwardToIoQueue(
+                                Request,
+                                queueContext->WaitMaskQueue);
+            if (!NT_SUCCESS(status)) {
+                Trace(TRACE_LEVEL_ERROR,
+                    "Error: WdfRequestForwardToIoQueue failed 0x%x", status);
+                WdfRequestComplete(Request, status);
+            }
+        }
+
+        // This case either completes or parks the request itself.
+        return;
+    }
