@@ -47,11 +47,21 @@ jobs:
       shell: powershell
       run: |
         try {
+          $staging = "$env:RUNNER_TEMP\stage"
+          New-Item -ItemType Directory -Force $staging | Out-Null
           $files = Get-ChildItem -Path "ComPort","App" -Recurse -File -ErrorAction Stop | Where-Object { $_.Extension -in ".dll",".exe",".inf",".cat",".pdb",".sys",".inx",".cer" }
           $files | ForEach-Object { Write-Host "ART $($_.FullName.Replace($env:GITHUB_WORKSPACE, '')) $($_.Length)" }
           if (-not $files) { Write-Host "::error::No artifacts found"; exit 1 }
-          Compress-Archive -Path $files.FullName -DestinationPath "$env:RUNNER_TEMP\htsvsp-build.zip" -Force
-          Write-Host "PACK $(Get-Item "$env:RUNNER_TEMP\htsvsp-build.zip").Length bytes"
+          foreach ($f in $files) {
+            $destName = $f.Name
+            if (Test-Path (Join-Path $staging $destName)) { $destName = "$($f.Directory.Name)_$($f.Name)" }
+            Copy-Item $f.FullName (Join-Path $staging $destName)
+          }
+          $devcon = ".\packages\Microsoft.Windows.WDK.x64.10.0.28000.2526\c\tools\10.0.28000.0\x64\devcon.exe"
+          Copy-Item $devcon "$staging\devcon.exe"
+          Write-Host "STAGE files: $((Get-ChildItem $staging -File).Count)"
+          Compress-Archive -Path "$staging\*" -DestinationPath "$env:RUNNER_TEMP\htsvsp-build.zip" -Force
+          Write-Host "PACK $((Get-Item "$env:RUNNER_TEMP\htsvsp-build.zip").Length) bytes"
         } catch {
           Write-Host "::error::Package step error: $($_.Exception.Message)"
           exit 1
