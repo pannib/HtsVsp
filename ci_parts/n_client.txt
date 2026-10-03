@@ -1,0 +1,127 @@
+DWORD ClientThread(PVOID context)
+{
+    PQUEUE_CONTEXT queueContext = (PQUEUE_CONTEXT)context;
+    PDEVICE_CONTEXT deviceContext = queueContext->DeviceContext;
+
+    HANDLE eventArray[] = {
+        deviceContext->ClientSocketEvent,
+        deviceContext->ThreadEvent,
+        deviceContext->ReadQueueEvent,
+        deviceContext->CancelEvent,
+        deviceContext->IntervalTimerEvent,
+        deviceContext->TotalTimerEvent
+    };
+    DWORD nEvents = sizeof(eventArray) / sizeof(HANDLE);
+    deviceContext->CurrentRequest = NULL;
+
+    while (!deviceContext->TerminateThread)
+    {
+        NTSTATUS status;
+
+        if (deviceContext->ClientSocket == INVALID_SOCKET) {
+            Trace(TRACE_LEVEL_ERROR, "client socket closed");
+            break;
+        }
+
+        // Pick up a read IRP if one is not currently held.
+        if (!deviceContext->CurrentRequest) {
+            WDFREQUEST readRequest;
+            status = WdfIoQueueRetrieveNextRequest(queueContext->ReadQueue, &readRequest);
+            if (NT_SUCCESS(status)) {
+                deviceContext->CurrentRequest = readRequest;
+                deviceContext->Stats.readDequeue++;
+                calculateReadTimers(deviceContext);
+                SatisfyFromRing(); // data may already be buffered.
+            }
+        }
+
+        if (deviceContext->CurrentRequest) {
+            status = WdfRequestMarkCancelableEx(deviceContext->CurrentRequest, EvtReadRequestCancel);
+            if (!NT_SUCCESS(status)) {
+                FinishCurrent(deviceContext, status, 0);
+                continue;
+            }
+            if (deviceContext->UseIntervalTimer)
+                WdfTimerStart(deviceContext->IntervalTimer, deviceContext->IntervalTimeRelative.QuadPart);
+            else
+                WdfTimerStop(deviceContext->IntervalTimer, FALSE);
+            if (deviceContext->UseTotalTimer)
+                WdfTimerStart(deviceContext->TotalTimer, deviceContext->TotalTimeRelative.QuadPart);
+            else
+                WdfTimerStop(deviceContext->TotalTimer, FALSE);
+        }
+
+        DWORD timeout = INFINITE;
+        if (deviceContext->CurrentRequest &&
+            !deviceContext->UseIntervalTimer &&
+            !deviceContext->UseTotalTimer) {
+            timeout = 500;
+        }
+
+        DWORD eventIndex = WSAWaitForMultipleEvents(nEvents, eventArray, false, timeout, true);
+        if (deviceContext->CurrentRequest) {
+            WdfRequestUnmarkCancelable(deviceContext->CurrentRequest);
+        }
+
+        switch (eventIndex) {
+        case WAIT_OBJECT_0: // socket event
+        {
+            deviceContext->Stats.totalSocketEvents++;
+            WSANETWORKEVENTS networkEvents = { 0 };
+            if (SOCKET_ERROR == WSAEnumNetworkEvents(deviceContext->ClientSocket,
+                deviceContext->ClientSocketEvent, &networkEvents)) {
+                Trace(TRACE_LEVEL_ERROR, "WSAEnumNetworkEvents error %d", WSAGetLastError());
+            }
+            if (networkEvents.lNetworkEvents & FD_READ) {
+                deviceContext->Stats.sockReadEvents++;
+                DrainSocketToRing(deviceContext);
+                deviceContext->PendingRxSignals++;
+                SignalWaitMask(deviceContext);
+                SatisfyFromRing();
+            }
+            break;
+        }
+
+        case WAIT_OBJECT_0 + 1: // terminate
+            Trace(TRACE_LEVEL_ERROR, "thread terminate event.");
+            if (deviceContext->CurrentRequest)
+                FinishCurrent(deviceContext, STATUS_CANCELLED, 0);
+            return 0;
+
+        case WAIT_OBJECT_0 + 2: // read queue ready
+            deviceContext->Stats.readQueueEvents++;
+            break;
+
+        case WAIT_OBJECT_0 + 3: // cancel
+            Trace(TRACE_LEVEL_INFO, "cancel event.");
+            if (deviceContext->CurrentRequest)
+                FinishCurrent(deviceContext, STATUS_CANCELLED, 0);
+            break;
+
+        case WAIT_OBJECT_0 + 4: // interval timer
+            deviceContext->Stats.intervalTimerEvents++;
+            TimeoutCurrent(deviceContext);
+            break;
+
+        case WAIT_OBJECT_0 + 5: // total timer
+            deviceContext->Stats.totalTimerEvents++;
+            TimeoutCurrent(deviceContext);
+            break;
+
+        case WAIT_TIMEOUT:
+            if (deviceContext->CurrentRequest) {
+                PREQUEST_CONTEXT requestContext = GetRequestContext(deviceContext->CurrentRequest);
+                requestContext->WaitTimeouts++;
+                if (requestContext->WaitTimeouts >= Globals.WaitUnits) {
+                    deviceContext->Stats.waitTimeouts++;
+                    TimeoutCurrent(deviceContext);
+                }
+            }
+            break;
+
+        default:
+            break;
+        }
+    }
+    return 0;
+}
