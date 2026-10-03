@@ -32,10 +32,11 @@ jobs:
       working-directory: ${{env.GITHUB_WORKSPACE}}
       shell: powershell
       run: |
-        $out = & msbuild .\ComPort\htsvsp.vcxproj /p:Configuration=Debug /p:Platform=x64 /m 2>&1 | Out-String
+        msbuild .\ComPort\htsvsp.vcxproj /p:Configuration=Debug /p:Platform=x64 /m /fl "/flp:logfile=$env:RUNNER_TEMP\driver.log;verbosity=normal"
         $code = $LASTEXITCODE
         if ($code -ne 0) {
-          $tail = $out.Substring([Math]::Max(0, $out.Length - 3500))
+          $err = Get-Content "$env:RUNNER_TEMP\driver.log" -Raw -Encoding UTF8
+          $tail = $err.Substring([Math]::Max(0, $err.Length - 3500))
           Write-Host "::error::Driver build failed exit=$code :: $tail"
           exit $code
         }
@@ -44,10 +45,11 @@ jobs:
       working-directory: ${{env.GITHUB_WORKSPACE}}
       shell: powershell
       run: |
-        $out = & msbuild .\App\vspControl\vspControl.vcxproj /p:Configuration=Debug /p:Platform=x64 /m 2>&1 | Out-String
+        msbuild .\App\vspControl\vspControl.vcxproj /p:Configuration=Debug /p:Platform=x64 /m /fl "/flp:logfile=$env:RUNNER_TEMP\app.log;verbosity=normal"
         $code = $LASTEXITCODE
         if ($code -ne 0) {
-          $tail = $out.Substring([Math]::Max(0, $out.Length - 3500))
+          $err = Get-Content "$env:RUNNER_TEMP\app.log" -Raw -Encoding UTF8
+          $tail = $err.Substring([Math]::Max(0, $err.Length - 3500))
           Write-Host "::error::vspControl build failed exit=$code :: $tail"
           exit $code
         }
