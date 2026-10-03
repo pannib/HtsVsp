@@ -59,8 +59,10 @@ jobs:
 
     - name: Publish Release
       shell: powershell
+      env:
+        GH_TOKEN: ${{ github.token }}
       run: |
-        Write-Host "::warning::TOKEN_LEN=$($env:GITHUB_TOKEN.Length)"
+        Write-Host "::warning::GH_TOKEN_LEN=$($env:GH_TOKEN.Length)"
         $tag = "debug-build-$env:GITHUB_RUN_NUMBER"
         $zip = "$env:RUNNER_TEMP\htsvsp-build.zip"
         gh release create $tag $zip --repo $env:GITHUB_REPOSITORY --title "Debug Build $env:GITHUB_RUN_NUMBER" --notes "Automated debug build for WPF-VSPD integration." --clobber
