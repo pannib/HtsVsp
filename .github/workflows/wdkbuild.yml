@@ -53,18 +53,48 @@ jobs:
       uses: microsoft/setup-msbuild@v2
 
     - name: Build Driver (UDF)
+      id: builddriver
+      continue-on-error: true
       working-directory: ${{env.GITHUB_WORKSPACE}}
       shell: powershell
       run: |
-        msbuild .\ComPort\htsvsp.vcxproj /p:Configuration=Debug /p:Platform=x64 /m /v:minimal
-        if ($LASTEXITCODE -ne 0) { Write-Host "::error::Driver build failed exit=$LASTEXITCODE"; exit $LASTEXITCODE }
+        cmd /c "msbuild .\ComPort\htsvsp.vcxproj /p:Configuration=Debug /p:Platform=x64 /m /v:normal > driver-build.log 2>&1"
+        "$LASTEXITCODE" | Out-File driver-exit.txt -Encoding ascii
+        Get-Content driver-build.log -Tail 35
+        Write-Host "DRIVER_EXIT=$LASTEXITCODE"
 
     - name: Build vspControl
+      id: buildvsp
+      continue-on-error: true
       working-directory: ${{env.GITHUB_WORKSPACE}}
       shell: powershell
       run: |
-        msbuild .\App\vspControl\vspControl.vcxproj /p:Configuration=Debug /p:Platform=x64 /m /v:minimal
-        if ($LASTEXITCODE -ne 0) { Write-Host "::error::vspControl build failed exit=$LASTEXITCODE"; exit $LASTEXITCODE }
+        cmd /c "msbuild .\App\vspControl\vspControl.vcxproj /p:Configuration=Debug /p:Platform=x64 /m /v:normal > vsp-build.log 2>&1"
+        "$LASTEXITCODE" | Out-File vsp-exit.txt -Encoding ascii
+        Get-Content vsp-build.log -Tail 20
+        Write-Host "VSP_EXIT=$LASTEXITCODE"
+
+    - name: Publish Build Logs On Failure
+      working-directory: ${{env.GITHUB_WORKSPACE}}
+      shell: powershell
+      run: |
+        $dc = [int]((Get-Content driver-exit.txt -Raw).Trim())
+        $vc = [int]((Get-Content vsp-exit.txt -Raw).Trim())
+        Write-Host "RESULTS driver=$dc vsp=$vc"
+        if ($dc -ne 0 -or $vc -ne 0) {
+          if (Test-Path build-logs) { Remove-Item build-logs -Recurse -Force }
+          New-Item -ItemType Directory -Force build-logs | Out-Null
+          Copy-Item driver-build.log build-logs\
+          Copy-Item vsp-build.log build-logs\
+          git config user.name "pannib"
+          git config user.email "15039500683@163.com"
+          git add build-logs
+          git commit -m "diagnostic: build logs [skip ci]"
+          git push "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" HEAD:main
+          Write-Host "::error::build failed driver=$dc vsp=$vc"
+          exit 1
+        }
+        Write-Host "Both builds succeeded"
 
     - name: Package Artifacts
       working-directory: ${{env.GITHUB_WORKSPACE}}
@@ -73,8 +103,6 @@ jobs:
         try {
           $staging = "$env:RUNNER_TEMP\stage"
           New-Item -ItemType Directory -Force $staging | Out-Null
-          # htsCommon.props redirects the final OutDir to repo-root bin/<Config>/<Platform>/,
-          # so the linked HtsVsp.dll / vspControl.exe live under "bin", not ComPort/App.
           $searchPaths = @("ComPort", "App")
           if (Test-Path "bin") {
             $searchPaths += "bin"
