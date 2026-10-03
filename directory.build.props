@@ -21,6 +21,7 @@
   <SkipPackageVerification>true</SkipPackageVerification>
   <InfToolPath Condition="'$(InfToolPath)' == '' and '$(WDKContentRoot)' != ''">$(WDKContentRoot)\bin\10.0.28000.0\x64\</InfToolPath>
   <Inf2CatToolPath Condition="'$(Inf2CatToolPath)' == '' and '$(WDKContentRoot)' != ''">$(WDKContentRoot)\bin\10.0.28000.0\x86\</Inf2CatToolPath>
+  <DrvCatToolPath Condition="'$(DrvCatToolPath)' == '' and '$(WDKContentRoot)' != ''">$(WDKContentRoot)\bin\10.0.28000.0\x64\</DrvCatToolPath>
   <TraceWppToolPath Condition="'$(TraceWppToolPath)' == '' and '$(WDKContentRoot)' != ''">$(WDKContentRoot)\bin\10.0.28000.0\x86\</TraceWppToolPath>
   <WmimofckToolPath Condition="'$(WmimofckToolPath)' == '' and '$(WDKContentRoot)' != ''">$(WDKContentRoot)\bin\10.0.28000.0\x64\</WmimofckToolPath>
   <BinplaceToolPath Condition="'$(BinplaceToolPath)' == '' and '$(WDKContentRoot)' != ''">$(WDKContentRoot)\bin\10.0.28000.0\x64\</BinplaceToolPath>
