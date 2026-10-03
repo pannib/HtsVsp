@@ -1,10 +1,14 @@
 # CI patch: fix HtsVsp server mode (ConfigureService missing ServiceSocket creation).
-# Idempotent and self-verifying. Run in repo root before build. Uses LF to match source.
+# Idempotent and self-verifying. Run in repo root before build.
+# Auto-detects the file's newline style (CI windows checkout may be CRLF or LF).
 $ErrorActionPreference = "Stop"
 $f = "ComPort/network.cpp"
 $text = [IO.File]::ReadAllText($f)
 $orig = $text
-$nl = "`n"
+
+# Detect newline style used by this file and preserve it on write.
+$nl = if ($text.Contains("`r`n")) { "`r`n" } else { "`n" }
+Write-Host "newline style: $(if ($nl -eq "`r`n") { 'CRLF' } else { 'LF' })"
 
 # 1) Insert WinSockCreate(&ServiceSocket) before the service sockaddr_in block.
 $marker = "    CleanupNetwork(deviceContext);$nl$nl    sockaddr_in service;"
