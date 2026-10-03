@@ -1,0 +1,80 @@
+    case IOCTL_SERIAL_GET_PROPERTIES:
+    {
+        //
+        // Report the capabilities of this virtual serial port.
+        //
+        HTS_SERIAL_COMMPROP commProp = {0};
+        commProp.PacketLength       = (USHORT)sizeof(HTS_SERIAL_COMMPROP);
+        commProp.PacketVersion      = 0x0200;
+        commProp.ServiceMask        = HTS_SP_SERIALCOMM;
+        commProp.MaxTxQueue         = 0;
+        commProp.MaxRxQueue         = 0;
+        commProp.MaxBaud            = HTS_BAUD_USER;
+        commProp.ProvSubType        = HTS_PST_RS232;
+        commProp.ProvCapabilities   = HTS_PCF_TOTALTIMEOUTS | HTS_PCF_INTTIMEOUTS
+                                    | HTS_PCF_SPECIALCHARS | HTS_PCF_16BITMODE;
+        commProp.SettableParams     = HTS_SP_BAUD | HTS_SP_PARITY | HTS_SP_DATABITS
+                                    | HTS_SP_STOPBITS | HTS_SP_HANDSHAKING
+                                    | HTS_SP_PARITY_CHECK | HTS_SP_CARRIER;
+        commProp.SettableBaud       = HTS_BAUD_USER;
+        commProp.SettableData       = HTS_DATABITS_5 | HTS_DATABITS_6
+                                    | HTS_DATABITS_7 | HTS_DATABITS_8;
+        commProp.SettableStopParity = HTS_STOPBITS_10 | HTS_STOPBITS_15 | HTS_STOPBITS_20
+                                    | HTS_PARITY_NONE | HTS_PARITY_ODD | HTS_PARITY_EVEN
+                                    | HTS_PARITY_MARK | HTS_PARITY_SPACE;
+        commProp.CurrentTxQueue     = 0;
+        commProp.CurrentRxQueue     = 0;
+        commProp.ProvSpec1          = HTS_SP_PARITY_SER;
+        commProp.ProvSpec2          = 0;
+        status = RequestCopyFromBuffer(Request, &commProp, sizeof(commProp));
+        break;
+    }
+
+    case IOCTL_SERIAL_GET_MODEMSTATUS:
+    {
+        //
+        // No real hardware: report CTS/DSR/RLSD permanently asserted so
+        // applications that gate on carrier see the port as connected.
+        //
+        ULONG modemStatus = HTS_MS_CTS_ON | HTS_MS_DSR_ON | HTS_MS_RLSD_ON;
+        status = RequestCopyFromBuffer(Request, &modemStatus, sizeof(modemStatus));
+        break;
+    }
+
+    case IOCTL_SERIAL_GET_COMMSTATUS:
+    {
+        HTS_SERIAL_STATUS serialStatus = {0};
+        status = RequestCopyFromBuffer(Request, &serialStatus, sizeof(serialStatus));
+        break;
+    }
+
+    case IOCTL_SERIAL_GET_DTRRTS:
+    {
+        ULONG dtrRts = HTS_SERIAL_DTR_STATE | HTS_SERIAL_RTS_STATE;
+        status = RequestCopyFromBuffer(Request, &dtrRts, sizeof(dtrRts));
+        break;
+    }
+
+    case IOCTL_SERIAL_SET_QUEUE_SIZE:
+    case IOCTL_SERIAL_SET_DTR:
+    case IOCTL_SERIAL_CLR_DTR:
+    case IOCTL_SERIAL_SET_RTS:
+    case IOCTL_SERIAL_CLR_RTS:
+    case IOCTL_SERIAL_SET_XON:
+    case IOCTL_SERIAL_SET_XOFF:
+    case IOCTL_SERIAL_SET_CHARS:
+    case IOCTL_SERIAL_GET_CHARS:
+    case IOCTL_SERIAL_GET_HANDFLOW:
+    case IOCTL_SERIAL_SET_HANDFLOW:
+    case IOCTL_SERIAL_PURGE:
+    case IOCTL_SERIAL_SET_BREAK_ON:
+    case IOCTL_SERIAL_SET_BREAK_OFF:
+    case IOCTL_SERIAL_IMMEDIATE_CHAR:
+    case IOCTL_SERIAL_XOFF_COUNTER:
+    case IOCTL_SERIAL_LSRMST_INSERT:
+    case IOCTL_SERIAL_RESET_DEVICE:
+        //
+        // NOTE: The application expects STATUS_SUCCESS for these IOCTLs.
+        //
+        status = STATUS_SUCCESS;
+        break;
