@@ -62,10 +62,27 @@ jobs:
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
-        Write-Host "::warning::GH_TOKEN_LEN=$($env:GH_TOKEN.Length)"
         $tag = "debug-build-$env:GITHUB_RUN_NUMBER"
         $zip = "$env:RUNNER_TEMP\htsvsp-build.zip"
-        gh release create $tag $zip --repo $env:GITHUB_REPOSITORY --title "Debug Build $env:GITHUB_RUN_NUMBER" --notes "Automated debug build for WPF-VSPD integration." --clobber
-        $code = $LASTEXITCODE
-        Write-Host "GH_EXIT=$code"
-        if ($code -ne 0) { Write-Host "::error::gh release create failed exit=$code"; exit $code }
+        $ghOut = gh release create $tag $zip --repo $env:GITHUB_REPOSITORY --title "Debug Build $env:GITHUB_RUN_NUMBER" --notes "Automated debug build for WPF-VSPD integration." --clobber 2>&1
+        $ghCode = $LASTEXITCODE
+        if ($ghCode -eq 0) {
+          Write-Host "RELEASE_OK $tag"
+          Write-Host "$ghOut"
+        } else {
+          Write-Host "::warning::gh failed: $ghOut"
+          Write-Host "Trying git push fallback..."
+          Copy-Item $zip "$env:GITHUB_WORKSPACE\htsvsp-build.zip" -Force
+          git config user.name "pannib"
+          git config user.email "15039500683@163.com"
+          git checkout -B build-output 2>&1 | Out-Null
+          git add -f htsvsp-build.zip 2>&1 | Out-Null
+          git -c user.name="pannib" -c user.email="15039500683@163.com" commit -m "artifacts run $env:GITHUB_RUN_NUMBER" 2>&1 | Out-Null
+          $pushOut = git push origin build-output --force 2>&1
+          $pushCode = $LASTEXITCODE
+          if ($pushCode -ne 0) {
+            Write-Host "::error::push failed: $pushOut"
+            exit 1
+          }
+          Write-Host "PUSHED build-output branch"
+        }
