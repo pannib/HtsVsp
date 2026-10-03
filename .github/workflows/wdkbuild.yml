@@ -22,7 +22,7 @@ jobs:
     - name: Install WDK
       shell: powershell
       run: |
-        winget install Microsoft.WindowsWDK.10.0.26100 -e --accept-source-agreements --accept-package-agreements --silent --disable-interactivity
+        winget install Microsoft.WindowsWDK.10.0.28000 -e --accept-source-agreements --accept-package-agreements --silent --disable-interactivity
         if ($LASTEXITCODE -ne 0) { Write-Host "::error::WDK install failed exit=$LASTEXITCODE"; exit $LASTEXITCODE }
 
     - name: Setup MSBuild
@@ -32,12 +32,11 @@ jobs:
       working-directory: ${{env.GITHUB_WORKSPACE}}
       shell: powershell
       run: |
-        msbuild .\ComPort\htsvsp.vcxproj /p:Configuration=Debug /p:Platform=x64 /m *> "$env:RUNNER_TEMP\driver_build.log"
+        $out = & msbuild .\ComPort\htsvsp.vcxproj /p:Configuration=Debug /p:Platform=x64 /m 2>&1 | Out-String
         $code = $LASTEXITCODE
         if ($code -ne 0) {
-          $err = Get-Content "$env:RUNNER_TEMP\driver_build.log" -Raw
-          $short = $err.Substring(0, [Math]::Min(4000, $err.Length))
-          Write-Host "::error::Driver build failed exit=$code :: $short"
+          $tail = $out.Substring([Math]::Max(0, $out.Length - 3500))
+          Write-Host "::error::Driver build failed exit=$code :: $tail"
           exit $code
         }
 
@@ -45,12 +44,11 @@ jobs:
       working-directory: ${{env.GITHUB_WORKSPACE}}
       shell: powershell
       run: |
-        msbuild .\App\vspControl\vspControl.vcxproj /p:Configuration=Debug /p:Platform=x64 /m *> "$env:RUNNER_TEMP\app_build.log"
+        $out = & msbuild .\App\vspControl\vspControl.vcxproj /p:Configuration=Debug /p:Platform=x64 /m 2>&1 | Out-String
         $code = $LASTEXITCODE
         if ($code -ne 0) {
-          $err = Get-Content "$env:RUNNER_TEMP\app_build.log" -Raw
-          $short = $err.Substring(0, [Math]::Min(4000, $err.Length))
-          Write-Host "::error::vspControl build failed exit=$code :: $short"
+          $tail = $out.Substring([Math]::Max(0, $out.Length - 3500))
+          Write-Host "::error::vspControl build failed exit=$code :: $tail"
           exit $code
         }
 
