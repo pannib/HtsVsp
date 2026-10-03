@@ -1,0 +1,9 @@
+    case IOCTL_SERIAL_GET_COMMSTATUS:
+    {
+        HTS_SERIAL_STATUS serialStatus = {0};
+        size_t queuedBytes = 0;
+        RingBufferGetAvailableData(&deviceContext->ReadRing, &queuedBytes);
+        serialStatus.AmountInInQueue = (ULONG)queuedBytes;
+        status = RequestCopyFromBuffer(Request, &serialStatus, sizeof(serialStatus));
+        break;
+    }
