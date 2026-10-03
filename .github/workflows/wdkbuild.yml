@@ -22,24 +22,8 @@ jobs:
     - name: Install WDK
       shell: powershell
       run: |
-        winget source update --accept-source-agreements 2>&1 | Out-Null
-        $log = "$env:RUNNER_TEMP\wdk_install.log"
-        & winget install Microsoft.WindowsWDK.10.0.26100 -e --accept-source-agreements --accept-package-agreements --silent --disable-interactivity *> $log
-        $code = $LASTEXITCODE
-        if ($code -ne 0) {
-          $err = Get-Content $log -Raw
-          $short = $err.Substring(0, [Math]::Min(4000, $err.Length))
-          Write-Host "::error::WDK install failed exit=$code :: $short"
-          exit $code
-        }
-        & winget install Microsoft.WindowsSDK.10.0.26100 -e --accept-source-agreements --accept-package-agreements --silent --disable-interactivity *> $log
-        $code = $LASTEXITCODE
-        if ($code -ne 0) {
-          $err = Get-Content $log -Raw
-          $short = $err.Substring(0, [Math]::Min(4000, $err.Length))
-          Write-Host "::error::SDK install failed exit=$code :: $short"
-          exit $code
-        }
+        winget install Microsoft.WindowsWDK.10.0.26100 -e --accept-source-agreements --accept-package-agreements --silent --disable-interactivity
+        if ($LASTEXITCODE -ne 0) { Write-Host "::error::WDK install failed exit=$LASTEXITCODE"; exit $LASTEXITCODE }
       
     - name: Build Driver (UDF)
       working-directory: ${{env.GITHUB_WORKSPACE}}
