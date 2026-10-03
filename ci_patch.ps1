@@ -7,6 +7,8 @@ function Write-Lf($p, $t) { [IO.File]::WriteAllText($p, $t, (New-Object Text.UTF
 function Part($n) { (Read-Norm (Join-Path $parts $n)).TrimEnd("`n","`r") }
 
 function Apply-Literal($file, $old, $new, $tag) {
+    $old = $old -replace "`r`n", "`n"
+    $new = $new -replace "`r`n", "`n"
     $p = Join-Path $root $file
     $t = Read-Norm $p
     $cnt = ([regex]::Matches($t, [regex]::Escape($old))).Count
@@ -17,6 +19,8 @@ function Apply-Literal($file, $old, $new, $tag) {
 }
 
 function Apply-Regex($file, $pattern, $new, $tag) {
+    $pattern = $pattern -replace "`r`n", "`n"
+    $new = $new -replace "`r`n", "`n"
     $p = Join-Path $root $file
     $t = Read-Norm $p
     $rx = [regex]$pattern
