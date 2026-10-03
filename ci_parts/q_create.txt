@@ -1,0 +1,10 @@
+    //
+    // Cache the manual queues on the device and initialize the receive ring
+    // that decouples socket data arrival from the application's read IRPs.
+    //
+    DeviceContext->PendingReadQueue = queueContext->ReadQueue;
+    DeviceContext->PendingWaitMaskQueue = queueContext->WaitMaskQueue;
+    RingBufferInitialize(&DeviceContext->ReadRing,
+                            DeviceContext->ReadRingStorage,
+                            RX_RING_SIZE);
+    DeviceContext->PendingRxSignals = 0;
