@@ -67,6 +67,15 @@ jobs:
           exit 1
         }
 
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: htsvsp-build
+        path: |
+          ${{ runner.temp }}/stage/
+          ${{ runner.temp }}/htsvsp-build.zip
+        if-no-files-found: error
+
     - name: Publish Release
       shell: powershell
       env:
