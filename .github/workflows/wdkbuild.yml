@@ -32,47 +32,43 @@ jobs:
       working-directory: ${{env.GITHUB_WORKSPACE}}
       shell: powershell
       run: |
-        msbuild .\ComPort\htsvsp.vcxproj /p:Configuration=Debug /p:Platform=x64 /m /v:minimal /fl "/flp:logfile=$env:RUNNER_TEMP\driver.log;verbosity=minimal" *> $null
-        $code = $LASTEXITCODE
-        if ($code -ne 0) {
-          $err = Get-Content "$env:RUNNER_TEMP\driver.log" -Raw -Encoding UTF8
-          $errLines = $err -split "`r?`n"
-          $rel = $errLines | Where-Object { $_ -match ": (fatal )?error|: warning|error C[0-9]+|error LNK|error MSB|cannot open" } | Select-Object -First 15
-          if ($rel) { $rel | ForEach-Object { Write-Host "::error::DRV: $_" } }
-          $tail = $err.Substring([Math]::Max(0, $err.Length - 1500))
-          Write-Host "::error::DRV TAIL: $tail"
-          exit $code
-        }
+        msbuild .\ComPort\htsvsp.vcxproj /p:Configuration=Debug /p:Platform=x64 /m /v:minimal
+        if ($LASTEXITCODE -ne 0) { Write-Host "::error::Driver build failed exit=$LASTEXITCODE"; exit $LASTEXITCODE }
 
     - name: Build vspControl
       working-directory: ${{env.GITHUB_WORKSPACE}}
       shell: powershell
       run: |
-        msbuild .\App\vspControl\vspControl.vcxproj /p:Configuration=Debug /p:Platform=x64 /m /v:minimal /fl "/flp:logfile=$env:RUNNER_TEMP\app.log;verbosity=minimal"
-        $code = $LASTEXITCODE
-        if ($code -ne 0) {
-          $err = Get-Content "$env:RUNNER_TEMP\app.log" -Raw -Encoding UTF8
-          $errLines = $err -split "`r?`n"
-          $rel = $errLines | Where-Object { $_ -match ": (fatal )?error|: warning|error C[0-9]+|error LNK|error MSB|cannot open" } | Select-Object -First 15
-          if ($rel) { $rel | ForEach-Object { Write-Host "::error::APP: $_" } }
-          $tail = $err.Substring([Math]::Max(0, $err.Length - 1500))
-          Write-Host "::error::APP TAIL: $tail"
-          exit $code
-        }
+        msbuild .\App\vspControl\vspControl.vcxproj /p:Configuration=Debug /p:Platform=x64 /m /v:minimal
+        if ($LASTEXITCODE -ne 0) { Write-Host "::error::vspControl build failed exit=$LASTEXITCODE"; exit $LASTEXITCODE }
+
+    - name: Package Artifacts
+      working-directory: ${{env.GITHUB_WORKSPACE}}
+      shell: powershell
+      run: |
+        Write-Host "=== ComPort\x64\Debug ==="
+        Get-ChildItem "ComPort\x64\Debug" -ErrorAction SilentlyContinue | ForEach-Object { Write-Host $_.Name }
+        Write-Host "=== vspControl\x64\Debug ==="
+        Get-ChildItem "App\vspControl\x64\Debug" -ErrorAction SilentlyContinue | ForEach-Object { Write-Host $_.Name }
+        Compress-Archive -Path "ComPort\x64\Debug\*" -DestinationPath "$env:RUNNER_TEMP\htsvsp-driver.zip" -Force
+        Compress-Archive -Path "App\vspControl\x64\Debug\*" -DestinationPath "$env:RUNNER_TEMP\vspcontrol.zip" -Force
+        Get-Item "$env:RUNNER_TEMP\htsvsp-driver.zip","$env:RUNNER_TEMP\vspcontrol.zip" | ForEach-Object { Write-Host "PACK $($_.Name) $($_.Length) bytes" }
 
     - name: Publish Release
-      if: ${{ always() }}
-      uses: softprops/action-gh-release@v2
-      with:
-        tag_name: debug-build-${{ github.run_number }}
-        name: Debug Build ${{ github.run_number }}
-        body: |
-          Automated debug build for WPF-VSPD integration.
-          - HtsVsp.dll (UDF user-mode serial driver)
-          - htsvsp.inf / htsvsp.cat
-          - vspControl.exe
-        files: |
-          ComPort/x64/Debug/*
-          App/vspControl/x64/Debug/*
-          bin/**/*.*
-        fail_on_unmatched_files: false
+      shell: powershell
+      run: |
+        $tag = "debug-build-$env:GITHUB_RUN_NUMBER"
+        $headers = @{ Authorization = "Bearer $env:GITHUB_TOKEN" }
+        try {
+          $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/$env:GITHUB_REPOSITORY/releases/tags/$tag" -Headers $headers -TimeoutSec 30
+        } catch {
+          $body = @{ tag_name = $tag; name = "Debug Build $env:GITHUB_RUN_NUMBER"; body = "Automated debug build for WPF-VSPD integration." } | ConvertTo-Json
+          $rel = Invoke-RestMethod -Method Post -Uri "https://api.github.com/repos/$env:GITHUB_REPOSITORY/releases" -Headers $headers -Body $body -ContentType "application/json" -TimeoutSec 30
+        }
+        $uploadBase = ($rel.upload_url -replace '\{[^}]*\}', '')
+        foreach ($f in @("$env:RUNNER_TEMP\htsvsp-driver.zip", "$env:RUNNER_TEMP\vspcontrol.zip")) {
+          $name = Split-Path $f -Leaf
+          curl.exe -sS -X POST -H "Authorization: Bearer $env:GITHUB_TOKEN" -H "Content-Type: application/octet-stream" --data-binary "@$f" "$uploadBase?name=$name"
+          if ($LASTEXITCODE -ne 0) { Write-Host "::error::upload failed $name"; exit 1 }
+          Write-Host "UPLOADED $name"
+        }
