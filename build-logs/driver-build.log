@@ -1,0 +1,69 @@
+MSBuild version 18.10.1-1.26427.6+3cd27c13e for .NET Framework
+Build started 10/3/2026 11:04:50 AM.
+
+     1>Project "D:\a\HtsVsp\HtsVsp\ComPort\htsvsp.vcxproj" on node 1 (default targets).
+     1>DriverBuildNotifications:
+         Building 'htsVsp' with toolset 'WindowsUserModeDriver10.0' and the 'Desktop' target platform.
+         Using UMDF 2.33.
+       PrepareForBuild:
+         Creating directory "x64\Debug\".
+         Structured output is enabled. The formatting of compiler diagnostics will reflect the error hierarchy. See https://aka.ms/cpp/structured-output for more details.
+         Creating directory "D:\a\HtsVsp\HtsVsp/bin/Debug/x64/".
+         Creating directory "x64\Debug\htsVsp.tlog\".
+       InitializeBuildStatus:
+         Creating "x64\Debug\htsVsp.tlog\unsuccessfulbuild" because "AlwaysCreate" was specified.
+         Touching "x64\Debug\htsVsp.tlog\unsuccessfulbuild".
+       VersionFiles:
+         %WINDIR%\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -NonInteractive -Executionpolicy Unrestricted -WindowStyle Hidden -command "& { D:\a\HtsVsp\HtsVsp/BuildTools\versionfiles.ps1 -incPath 'D:\a\HtsVsp\HtsVsp\inc'  -verMajor 1 -verMinor 0 -verRev 0 } "
+         10.03:11:04:57: branch: main in repo D:/a/HtsVsp/HtsVsp has modified uncommitted files, using build number 0
+         10.03:11:04:57: Using generated build number 0
+         10.03:11:04:57: build string 4d856b9
+         10.03:11:04:57: include file directory is D:\a\HtsVsp\HtsVsp\inc
+         10.03:11:04:57: creating D:\a\HtsVsp\HtsVsp\inc\ntverp.h
+         10.03:11:04:57: creating D:\a\HtsVsp\HtsVsp\inc\buildnumber.props
+       StampInf:
+         D:\a\HtsVsp\HtsVsp\packages\Microsoft.Windows.WDK.x64.10.0.28000.2526\c\bin\10.0.28000.0\x64\stampinf.exe -d "*" -a "amd64" -i "D:\a\HtsVsp\HtsVsp\inc" -v "1.0.0." -u "2.33.0"  -x -f x64\Debug\htsvsp.inf 
+         Copying "D:\a\HtsVsp\HtsVsp\ComPort\htsvsp.inx" to "x64\Debug\htsvsp.inf" for stamping
+         Stamping x64\Debug\htsvsp.inf
+         Stamping [Version] section with DriverVer=10/03/2026,1.0.0.
+         Copying file from "D:\a\HtsVsp\HtsVsp\ComPort\x64\Debug\htsvsp.inf" to "D:\a\HtsVsp\HtsVsp\bin\Debug\x64\htsvsp.inf".
+       ClCompile:
+         C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Tools\MSVC\14.51.36231\bin\HostX86\x64\CL.exe /c /Ix64\Debug\ /ID:\a\HtsVsp\HtsVsp\packages\Microsoft.Windows.WDK.x64.10.0.28000.2526\c\Include\10.0.28000.0\km\\wdm /I..\inc /I..\clsocket\src /Zi /nologo /W4 /WX /diagnostics:column /Od /Oi /Oy- /D _WIN64 /D _AMD64_ /D AMD64 /D DEPRECATE_DDK_FUNCTIONS=1 /D MSC_NOOPT /D WIN32_LEAN_AND_MEAN=1 /D _WIN32_WINNT=0x0A00 /D WINVER=0x0A00 /D WINNT=1 /D NTDDI_VERSION=0xA000012 /D DBG=1 /D _WINDLL /D _UNICODE /D UNICODE /D WIN32 /D UMDF_VERSION_MAJOR=2 /D UMDF_VERSION_MINOR=33 /D UMDF_USING_NTSTATUS /D _UNICODE /D UNICODE /D UMDF_MINIMUM_VERSION_REQUIRED=31 /GF /Gm- /EHsc /Zp8 /GS /guard:cf /Gy /fp:precise /Qspectre /Zc:wchar_t- /Zc:forScope /Zc:inline /GR- /Fo"x64\Debug\\" /Fd"x64\Debug\vc145.pdb" /external:W4 /Gz /wd4748 /wd4603 /wd4627 /wd4986 /wd4987 /FID:\a\HtsVsp\HtsVsp\packages\Microsoft.Windows.SDK.CPP.10.0.28000.2526\c\Include\10.0.28000.0\shared\warning.h /FC /errorReport:queue /d1import_no_registry /d2AllowCompatibleILVersions /d2Zi+ device.cpp driver.cpp network.cpp queue.cpp ringbuffer.cpp
+         device.cpp
+         driver.cpp
+         network.cpp
+         queue.cpp
+         ringbuffer.cpp
+     1>D:\a\HtsVsp\HtsVsp\ComPort\network.cpp(346,5): error C2660: 'SatisfyFromRing': function does not take 0 arguments [D:\a\HtsVsp\HtsVsp\ComPort\htsvsp.vcxproj]
+             D:\a\HtsVsp\HtsVsp\ComPort\network.cpp(315,13):
+             see declaration of 'SatisfyFromRing'
+             D:\a\HtsVsp\HtsVsp\ComPort\network.cpp(346,5):
+             while trying to match the argument list '()'
+         
+     1>D:\a\HtsVsp\HtsVsp\ComPort\network.cpp(387,17): error C2660: 'SatisfyFromRing': function does not take 0 arguments [D:\a\HtsVsp\HtsVsp\ComPort\htsvsp.vcxproj]
+             D:\a\HtsVsp\HtsVsp\ComPort\network.cpp(315,13):
+             see declaration of 'SatisfyFromRing'
+             D:\a\HtsVsp\HtsVsp\ComPort\network.cpp(387,17):
+             while trying to match the argument list '()'
+         
+     1>D:\a\HtsVsp\HtsVsp\ComPort\network.cpp(433,17): error C2660: 'SatisfyFromRing': function does not take 0 arguments [D:\a\HtsVsp\HtsVsp\ComPort\htsvsp.vcxproj]
+             D:\a\HtsVsp\HtsVsp\ComPort\network.cpp(315,13):
+             see declaration of 'SatisfyFromRing'
+             D:\a\HtsVsp\HtsVsp\ComPort\network.cpp(433,17):
+             while trying to match the argument list '()'
+         
+         Generating Code...
+     1>Done Building Project "D:\a\HtsVsp\HtsVsp\ComPort\htsvsp.vcxproj" (default targets) -- FAILED.
+
+Build FAILED.
+
+       "D:\a\HtsVsp\HtsVsp\ComPort\htsvsp.vcxproj" (default target) (1) ->
+       (ClCompile target) -> 
+         D:\a\HtsVsp\HtsVsp\ComPort\network.cpp(346,5): error C2660: 'SatisfyFromRing': function does not take 0 arguments [D:\a\HtsVsp\HtsVsp\ComPort\htsvsp.vcxproj]
+         D:\a\HtsVsp\HtsVsp\ComPort\network.cpp(387,17): error C2660: 'SatisfyFromRing': function does not take 0 arguments [D:\a\HtsVsp\HtsVsp\ComPort\htsvsp.vcxproj]
+         D:\a\HtsVsp\HtsVsp\ComPort\network.cpp(433,17): error C2660: 'SatisfyFromRing': function does not take 0 arguments [D:\a\HtsVsp\HtsVsp\ComPort\htsvsp.vcxproj]
+
+    0 Warning(s)
+    3 Error(s)
+
+Time Elapsed 00:00:12.79
