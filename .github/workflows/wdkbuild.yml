@@ -28,11 +28,28 @@ jobs:
     - name: Setup MSBuild
       uses: microsoft/setup-msbuild@v2
 
+    - name: Diagnose
+      shell: powershell
+      run: |
+        $diag = @()
+        $diag += "VCTargetsPath=$env:VCTargetsPath"
+        $kits = "C:\Program Files (x86)\Windows Kits\10"
+        $diag += "Kits10=$(Test-Path $kits)"
+        if (Test-Path "$kits\Include") { $diag += "KitsInclude=" + ((Get-ChildItem "$kits\Include").Name -join ",") }
+        if (Test-Path "$kits\Lib") { $diag += "KitsLib=" + ((Get-ChildItem "$kits\Lib").Name -join ",") }
+        $vs = Get-ChildItem "C:\Program Files\Microsoft Visual Studio" -ErrorAction SilentlyContinue
+        $diag += "VS=" + (($vs | ForEach-Object { $_.Name }) -join ",")
+        foreach ($v in $vs) {
+          $ts = Get-ChildItem "$($v.FullName)\*\MSBuild\Microsoft\VC\*\Platforms\x64\PlatformToolsets" -ErrorAction SilentlyContinue
+          $diag += "Toolset($($v.Name))=" + (($ts | ForEach-Object { $_.Name }) -join ",")
+        }
+        Write-Host "::warning::DIAG " + ($diag -join " || ")
+
     - name: Build Driver (UDF)
       working-directory: ${{env.GITHUB_WORKSPACE}}
       shell: powershell
       run: |
-        msbuild .\ComPort\htsvsp.vcxproj /p:Configuration=Debug /p:Platform=x64 /m /fl "/flp:logfile=$env:RUNNER_TEMP\driver.log;verbosity=normal"
+        msbuild .\ComPort\htsvsp.vcxproj /p:Configuration=Debug /p:Platform=x64 /m /fl "/flp:logfile=$env:RUNNER_TEMP\driver.log;verbosity=diagnostic"
         $code = $LASTEXITCODE
         if ($code -ne 0) {
           $err = Get-Content "$env:RUNNER_TEMP\driver.log" -Raw -Encoding UTF8
