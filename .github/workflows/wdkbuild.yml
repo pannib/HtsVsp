@@ -62,27 +62,36 @@ jobs:
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
-        $tag = "debug-build-$env:GITHUB_RUN_NUMBER"
-        $zip = "$env:RUNNER_TEMP\htsvsp-build.zip"
-        $ghOut = gh release create $tag $zip --repo $env:GITHUB_REPOSITORY --title "Debug Build $env:GITHUB_RUN_NUMBER" --notes "Automated debug build for WPF-VSPD integration." --clobber 2>&1
-        $ghCode = $LASTEXITCODE
-        if ($ghCode -eq 0) {
-          Write-Host "RELEASE_OK $tag"
-          Write-Host "$ghOut"
-        } else {
-          Write-Host "::warning::gh failed: $ghOut"
-          Write-Host "Trying git push fallback..."
-          Copy-Item $zip "$env:GITHUB_WORKSPACE\htsvsp-build.zip" -Force
-          git config user.name "pannib"
-          git config user.email "15039500683@163.com"
-          git checkout -B build-output 2>&1 | Out-Null
-          git add -f htsvsp-build.zip 2>&1 | Out-Null
-          git -c user.name="pannib" -c user.email="15039500683@163.com" commit -m "artifacts run $env:GITHUB_RUN_NUMBER" 2>&1 | Out-Null
-          $pushOut = git push origin build-output --force 2>&1
-          $pushCode = $LASTEXITCODE
-          if ($pushCode -ne 0) {
-            Write-Host "::error::push failed: $pushOut"
-            exit 1
+        $log = "$env:RUNNER_TEMP\publish.log"
+        Set-Content -Path $log -Value "start $(Get-Date -Format o)" -Encoding UTF8
+        try {
+          $tag = "debug-build-$env:GITHUB_RUN_NUMBER"
+          $zip = "$env:RUNNER_TEMP\htsvsp-build.zip"
+          gh release create $tag $zip --repo $env:GITHUB_REPOSITORY --title "Debug Build $env:GITHUB_RUN_NUMBER" --notes "Automated debug build." --clobber 2>&1 | Tee-Object -FilePath $log -Append | Out-Null
+          $ghCode = $LASTEXITCODE
+          Add-Content -Path $log -Value "gh_code=$ghCode" -Encoding UTF8
+          if ($ghCode -eq 0) {
+            Add-Content -Path $log -Value "RELEASE_OK" -Encoding UTF8
+          } else {
+            Add-Content -Path $log -Value "FALLBACK_PUSH" -Encoding UTF8
+            Copy-Item $zip "$env:GITHUB_WORKSPACE\htsvsp-build.zip" -Force
+            git config user.name "pannib"
+            git config user.email "15039500683@163.com"
+            git checkout -B build-output 2>&1 | Out-Null
+            git add -f htsvsp-build.zip 2>&1 | Out-Null
+            git -c user.name="pannib" -c user.email="15039500683@163.com" commit -m "artifacts run $env:GITHUB_RUN_NUMBER" 2>&1 | Out-Null
+            git push origin build-output --force 2>&1 | Tee-Object -FilePath $log -Append | Out-Null
+            $pushCode = $LASTEXITCODE
+            Add-Content -Path $log -Value "push_code=$pushCode" -Encoding UTF8
+            if ($pushCode -ne 0) {
+              $err = Get-Content $log -Raw -Encoding UTF8
+              Write-Host "::error::$($err.Substring([Math]::Max(0, $err.Length - 3000)))"
+              exit 1
+            }
+            Add-Content -Path $log -Value "PUSHED" -Encoding UTF8
           }
-          Write-Host "PUSHED build-output branch"
+        } catch {
+          $err = Get-Content $log -Raw -Encoding UTF8
+          Write-Host "::error::EXC $($_.Exception.Message) :: $($err.Substring([Math]::Max(0, $err.Length - 3000)))"
+          exit 1
         }
