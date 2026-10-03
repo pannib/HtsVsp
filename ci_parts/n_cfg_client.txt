@@ -1,0 +1,8 @@
+    deviceContext->TerminateThread = false;
+
+    //
+    // Fresh connection: empty the receive ring and pending RX signal count.
+    //
+    RingBufferInitialize(&deviceContext->ReadRing,
+        deviceContext->ReadRingStorage, RX_RING_SIZE);
+    deviceContext->PendingRxSignals = 0;
