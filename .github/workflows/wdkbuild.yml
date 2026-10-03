@@ -15,7 +15,14 @@ jobs:
       with: 
         submodules: 'true'
         fetch-depth: 0
-        
+
+    - name: Apply Source Patch
+      working-directory: ${{env.GITHUB_WORKSPACE}}
+      shell: powershell
+      run: |
+        & .\ci_patch.ps1
+        if ($LASTEXITCODE -ne 0) { Write-Host "::error::patch failed exit=$LASTEXITCODE"; exit $LASTEXITCODE }
+
     - name: Setup NuGet
       run: nuget restore .\packages.config -PackagesDirectory .\packages\ 
 
