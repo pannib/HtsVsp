@@ -18,6 +18,12 @@ jobs:
         
     - name: Setup NuGet
       run: nuget restore .\packages.config -PackagesDirectory .\packages\ 
+
+    - name: Install WDK
+      shell: powershell
+      run: |
+        winget install Microsoft.WindowsWDK.10.0.26100 -e --accept-source-agreements --accept-package-agreements --silent
+        winget install Microsoft.WindowsSDK.10.0.26100 -e --accept-source-agreements --accept-package-agreements --silent
       
     - name: Build Driver (UDF)
       working-directory: ${{env.GITHUB_WORKSPACE}}
