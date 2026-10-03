@@ -1,1 +1,1 @@
-diagnostic build trigger 2026-10-03 12:57 UTC - WAIT_ON_MASK path counters
+Build trigger: run47 - Q9 GET_COMMSTATUS cbInQue fix. Triggered 2026-10-03 21:37 CST.
