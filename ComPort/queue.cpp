@@ -492,7 +492,7 @@ EvtIoDeviceControl(
 
     case IOCTL_SERIAL_GET_MODEM_CONTROL:
     {
-        ULONG *modemControlRegister = GetModemControlRegister();
+        ULONG *modemControlRegister = GetModemControlRegisterPtr(deviceContext);
 
         ASSERT(modemControlRegister);
 
