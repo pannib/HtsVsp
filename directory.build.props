@@ -15,4 +15,15 @@
 <Import Project="packages\Microsoft.Windows.SDK.CPP.10.0.28000.2526\build\native\Microsoft.Windows.SDK.cpp.props" 
     Condition="Exists('packages\Microsoft.Windows.SDK.CPP.10.0.28000.2526\build\native\Microsoft.Windows.SDK.cpp.props')"/> 
 
+<PropertyGroup>
+  <InfToolPath Condition="'$(InfToolPath)' == '' and '$(WDKContentRoot)' != ''">$(WDKContentRoot)\bin\10.0.28000.0\x64\</InfToolPath>
+  <Inf2CatToolPath Condition="'$(Inf2CatToolPath)' == '' and '$(WDKContentRoot)' != ''">$(WDKContentRoot)\bin\10.0.28000.0\x86\</Inf2CatToolPath>
+  <TraceWppToolPath Condition="'$(TraceWppToolPath)' == '' and '$(WDKContentRoot)' != ''">$(WDKContentRoot)\bin\10.0.28000.0\x86\</TraceWppToolPath>
+  <WmimofckToolPath Condition="'$(WmimofckToolPath)' == '' and '$(WDKContentRoot)' != ''">$(WDKContentRoot)\bin\10.0.28000.0\x64\</WmimofckToolPath>
+  <BinplaceToolPath Condition="'$(BinplaceToolPath)' == '' and '$(WDKContentRoot)' != ''">$(WDKContentRoot)\bin\10.0.28000.0\x64\</BinplaceToolPath>
+  <MessageCompileToolPath Condition="'$(MessageCompileToolPath)' == '' and '$(WDKContentRoot)' != ''">$(WDKContentRoot)\bin\10.0.28000.0\x64\</MessageCompileToolPath>
+  <DriverSignToolPath Condition="'$(DriverSignToolPath)' == '' and '$(WDKContentRoot)' != ''">$(WDKContentRoot)\bin\10.0.28000.0\x86\</DriverSignToolPath>
+  <CtrppToolPath Condition="'$(CtrppToolPath)' == '' and '$(WDKContentRoot)' != ''">$(WDKContentRoot)\bin\10.0.28000.0\x64\</CtrppToolPath>
+</PropertyGroup>
+
 </Project> 
