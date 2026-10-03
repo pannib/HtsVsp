@@ -67,11 +67,12 @@ jobs:
         try {
           $tag = "debug-build-$env:GITHUB_RUN_NUMBER"
           $zip = "$env:RUNNER_TEMP\htsvsp-build.zip"
-          gh release create $tag $zip --repo $env:GITHUB_REPOSITORY --title "Debug Build $env:GITHUB_RUN_NUMBER" --notes "Automated debug build." --clobber 2>&1 | Tee-Object -FilePath $log -Append | Out-Null
+          gh release create $tag $zip --repo $env:GITHUB_REPOSITORY --title "Debug Build $env:GITHUB_RUN_NUMBER" --notes "Automated debug build." 2>&1 | Tee-Object -FilePath $log -Append | Out-Null
           $ghCode = $LASTEXITCODE
           Add-Content -Path $log -Value "gh_code=$ghCode" -Encoding UTF8
           if ($ghCode -eq 0) {
             Add-Content -Path $log -Value "RELEASE_OK" -Encoding UTF8
+            Write-Host "RELEASE_OK $tag"
           } else {
             Add-Content -Path $log -Value "FALLBACK_PUSH" -Encoding UTF8
             Copy-Item $zip "$env:GITHUB_WORKSPACE\htsvsp-build.zip" -Force
@@ -89,6 +90,7 @@ jobs:
               exit 1
             }
             Add-Content -Path $log -Value "PUSHED" -Encoding UTF8
+            Write-Host "PUSHED build-output"
           }
         } catch {
           $err = Get-Content $log -Raw -Encoding UTF8
