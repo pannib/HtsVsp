@@ -29,7 +29,7 @@ jobs:
         if ($code -ne 0) {
           $err = Get-Content $log -Raw
           $short = $err.Substring(0, [Math]::Min(4000, $err.Length))
-          Write-Error "::error::WDK install failed exit=$code :: $short"
+          Write-Host "::error::WDK install failed exit=$code :: $short"
           exit $code
         }
         & winget install Microsoft.WindowsSDK.10.0.26100 -e --accept-source-agreements --accept-package-agreements --silent --disable-interactivity *> $log
@@ -37,7 +37,7 @@ jobs:
         if ($code -ne 0) {
           $err = Get-Content $log -Raw
           $short = $err.Substring(0, [Math]::Min(4000, $err.Length))
-          Write-Error "::error::SDK install failed exit=$code :: $short"
+          Write-Host "::error::SDK install failed exit=$code :: $short"
           exit $code
         }
       
