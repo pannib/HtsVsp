@@ -1,106 +1,116 @@
-# CI patch for HtsVsp. Idempotent and self-verifying. Run in repo root before build.
-# Auto-detects each file's newline style (windows checkout may be CRLF or LF).
-#
-# Fixes:
-#  A) ConfigureService never created ServiceSocket -> server bind failed.
-#  B) CleanupNetwork sets TerminateThread=true and nothing resets it, so after any
-#     re-configuration the freshly created worker threads exit immediately.
-#  C) Diagnostic counters appended to HTS_VSP_REPORT to trace the receive path.
 $ErrorActionPreference = "Stop"
+$root = Split-Path -Parent $MyInvocation.MyCommand.Path
+$parts = Join-Path $root "ci_parts"
 
-function Detect-NL($p) {
-    $t = [IO.File]::ReadAllText($p)
-    if ($t.Contains("`r`n")) { return "`r`n" } else { return "`n" }
-}
-function Patch-File($p, $steps) {
-    $text = [IO.File]::ReadAllText($p)
-    $orig = $text
-    $nl = if ($text.Contains("`r`n")) { "`r`n" } else { "`n" }
-    Write-Host "== $p  newline=$(if ($nl -eq "`r`n") {'CRLF'} else {'LF'})"
-    foreach ($s in $steps) {
-        $marker  = $s.Marker -replace "`r?`n", [regex]::Escape($nl)
-        $marker  = [regex]::Unescape($marker)
-        $inject  = $s.Inject -replace "`r?`n", [regex]::Escape($nl)
-        $inject  = [regex]::Unescape($inject)
-        $already = $s.Already -replace "`r?`n", [regex]::Escape($nl)
-        $already = [regex]::Unescape($already)
-        if ($text.Contains($marker)) { $text = $text.Replace($marker, $inject); Write-Host "  $($s.Name): applied" }
-        elseif ($text.Contains($already)) { Write-Host "  $($s.Name): already applied" }
-        else { throw "$($s.Name): marker not found in $p" }
-    }
-    if ($text -ne $orig) { [IO.File]::WriteAllText($p, $text); Write-Host "  saved" }
-    else { Write-Host "  no changes" }
+function Read-Norm($p) { ([IO.File]::ReadAllText($p)) -replace "`r`n", "`n" }
+function Write-Lf($p, $t) { [IO.File]::WriteAllText($p, $t, (New-Object Text.UTF8Encoding($false))) }
+function Part($n) { Read-Norm (Join-Path $parts $n) }
+
+function Apply-Literal($file, $old, $new, $tag) {
+    $p = Join-Path $root $file
+    $t = Read-Norm $p
+    $cnt = ([regex]::Matches($t, [regex]::Escape($old))).Count
+    if ($cnt -ne 1) { throw "$tag : expected 1 match, got $cnt" }
+    $t = $t.Replace($old, $new)
+    Write-Lf $p $t
+    [Console]::WriteLine("OK  $tag")
 }
 
-# ---------- network.cpp : A, B, and client-loop counter ----------
-Patch-File "ComPort/network.cpp" @(
-  @{ Name="A1";
-     Marker="    CleanupNetwork(deviceContext);`n`n    sockaddr_in service;";
-     Inject="    CleanupNetwork(deviceContext);`n`n    int result = WinSockCreate(&deviceContext->ServiceSocket);`n    if (result != NO_ERROR) {`n        Trace(TRACE_LEVEL_ERROR, `"ServiceSocket create error: %#x`", result);`n        goto cleanup;`n    }`n`n    sockaddr_in service;";
-     Already="WinSockCreate(&deviceContext->ServiceSocket)" },
-  @{ Name="A2";
-     Marker="    int result = bind(deviceContext->ServiceSocket,";
-     Inject="    result = bind(deviceContext->ServiceSocket,";
-     Already="    result = bind(deviceContext->ServiceSocket," },
-  @{ Name="B1";
-     Marker="    CleanupNetwork(deviceContext);`n`n    struct addrinfo hints = { };";
-     Inject="    CleanupNetwork(deviceContext);`n`n    deviceContext->TerminateThread = false;`n`n    struct addrinfo hints = { };";
-     Already="TerminateThread = false;`n`n    struct addrinfo hints" },
-  @{ Name="B2";
-     Marker="    CleanupNetwork(deviceContext);`n`n    int result = WinSockCreate(&deviceContext->ServiceSocket);";
-     Inject="    CleanupNetwork(deviceContext);`n`n    deviceContext->TerminateThread = false;`n`n    int result = WinSockCreate(&deviceContext->ServiceSocket);";
-     Already="TerminateThread = false;`n`n    int result = WinSockCreate(&deviceContext->ServiceSocket)" },
-  @{ Name="C1";
-     Marker="    while (!deviceContext->TerminateThread)`n    {`n        NTSTATUS status;";
-     Inject="    while (!deviceContext->TerminateThread)`n    {`n        deviceContext->Stats.dbgClientLoop++;`n        NTSTATUS status;";
-     Already="Stats.dbgClientLoop++" }
-)
-
-# ---------- inc/htsvsp.h : append diagnostic fields ----------
-Patch-File "inc/htsvsp.h" @(
-  @{ Name="C0";
-     Marker="	DWORD   traceLevel;`n	DWORD   waitUnits;`n};";
-     Inject="	DWORD   traceLevel;`n	DWORD   waitUnits;`n`n	INT64   dbgIoReadEntered;`n	INT64   dbgForwardOk;`n	INT64   dbgForwardFail;`n	INT64   dbgReadyNotify;`n	INT64   dbgClientLoop;`n	INT64   dbgWaitMaskFwd;`n};";
-     Already="dbgWaitMaskFwd" }
-)
-
-# ---------- queue.cpp : counters ----------
-Patch-File "ComPort/queue.cpp" @(
-  @{ Name="C2";
-     Marker="    RtlZeroMemory(requestContext, sizeof(*requestContext));`n`n    Trace(TRACE_LEVEL_VERBOSE,`n            `" request:0x%p length: %d`", Request, (int) Length);";
-     Inject="    RtlZeroMemory(requestContext, sizeof(*requestContext));`n    queueContext->DeviceContext->Stats.dbgIoReadEntered++;`n`n    Trace(TRACE_LEVEL_VERBOSE,`n            `" request:0x%p length: %d`", Request, (int) Length);";
-     Already="Stats.dbgIoReadEntered++" },
-  @{ Name="C3";
-     Marker="    status = WdfRequestForwardToIoQueue(Request,`n                        queueContext->ReadQueue);`n    if( !NT_SUCCESS(status) ) {";
-     Inject="    status = WdfRequestForwardToIoQueue(Request,`n                        queueContext->ReadQueue);`n    if (NT_SUCCESS(status)) { queueContext->DeviceContext->Stats.dbgForwardOk++; }`n    else { queueContext->DeviceContext->Stats.dbgForwardFail++; }`n    if( !NT_SUCCESS(status) ) {";
-     Already="Stats.dbgForwardOk++" },
-  @{ Name="C4";
-     Marker="        status = WdfRequestForwardToIoQueue(`n                            Request,`n                            queueContext->WaitMaskQueue);";
-     Inject="        queueContext->DeviceContext->Stats.dbgWaitMaskFwd++;`n        status = WdfRequestForwardToIoQueue(`n                            Request,`n                            queueContext->WaitMaskQueue);";
-     Already="Stats.dbgWaitMaskFwd++" }
-)
-
-# EvtReadQueueReady counter: that function is near the top of queue.cpp.
-$q = "ComPort/queue.cpp"
-$qt = [IO.File]::ReadAllText($q)
-$qnl = if ($qt.Contains("`r`n")) { "`r`n" } else { "`n" }
-$qmarker = "    PQUEUE_CONTEXT queueContext = (PQUEUE_CONTEXT)Context;`n    SetEvent(queueContext->DeviceContext->ReadQueueEvent);"
-$qmarker = $qmarker -replace "`n", [regex]::Escape($qnl); $qmarker=[regex]::Unescape($qmarker)
-$qinject = "    PQUEUE_CONTEXT queueContext = (PQUEUE_CONTEXT)Context;" + $qnl + "    queueContext->DeviceContext->Stats.dbgReadyNotify++;" + $qnl + "    SetEvent(queueContext->DeviceContext->ReadQueueEvent);"
-if ($qt.Contains("Stats.dbgReadyNotify++")) { Write-Host "  C5: already applied" }
-elseif ($qt.Contains($qmarker)) { $qt = $qt.Replace($qmarker, $qinject); [IO.File]::WriteAllText($q,$qt); Write-Host "  C5: applied" }
-else { throw "C5 EvtReadQueueReady marker not found" }
-
-# ---------- verify ----------
-$net = [IO.File]::ReadAllText("ComPort/network.cpp")
-if (-not $net.Contains("WinSockCreate(&deviceContext->ServiceSocket)")) { throw "verify A1" }
-if (([regex]::Matches($net,[regex]::Escape("TerminateThread = false;"))).Count -lt 2) { throw "verify B" }
-$h = [IO.File]::ReadAllText("inc/htsvsp.h")
-foreach ($fld in @("dbgIoReadEntered","dbgForwardOk","dbgForwardFail","dbgReadyNotify","dbgClientLoop","dbgWaitMaskFwd")) {
-    if (-not $h.Contains($fld)) { throw "verify field $fld" }
+function Apply-Regex($file, $pattern, $new, $tag) {
+    $p = Join-Path $root $file
+    $t = Read-Norm $p
+    $rx = [regex]$pattern
+    $cnt = $rx.Matches($t).Count
+    if ($cnt -ne 1) { throw "$tag : expected 1 match, got $cnt" }
+    if ($new -match '\$') { throw "$tag : replacement must not contain `$" }
+    $t = $rx.Replace($t, $new)
+    Write-Lf $p $t
+    [Console]::WriteLine("OK  $tag")
 }
-$qq2 = [IO.File]::ReadAllText($q)
-foreach ($c in @("dbgIoReadEntered++","dbgForwardOk++","dbgWaitMaskFwd++","dbgReadyNotify++","dbgClientLoop++")) {
-    if (-not $qq2.Contains($c) -and -not $net.Contains($c)) { throw "verify counter $c" }
+
+# ---------- internal.h : ringbuffer.h must precede device.h ----------
+Apply-Literal "ComPort\internal.h" @'
+#include "device.h"
+#include "ringbuffer.h"
+'@ @'
+#include "ringbuffer.h"
+#include "device.h"
+'@ "I1 internal include order"
+
+# ---------- device.h : RX_RING_SIZE + receive ring fields ----------
+Apply-Literal "ComPort\device.h" @'
+#define REG_PATH_SERIALCOMM         REG_PATH_DEVICEMAP L"\\" SERIAL_DEVICE_MAP
+
+typedef struct _DEVICE_CONTEXT
+'@ @'
+#define REG_PATH_SERIALCOMM         REG_PATH_DEVICEMAP L"\\" SERIAL_DEVICE_MAP
+
+// Size of the receive ring that decouples socket arrival from read IRPs.
+#define RX_RING_SIZE                16384
+
+typedef struct _DEVICE_CONTEXT
+'@ "D1 device RX_RING_SIZE"
+
+Apply-Literal "ComPort\device.h" @'
+    BOOL            crunchDownToOne;
+
+} DEVICE_CONTEXT, *PDEVICE_CONTEXT;
+'@ @'
+    BOOL            crunchDownToOne;
+
+    //
+    // Receive ring and cached queue handles; socket data is drained into the
+    // ring on FD_READ and read IRPs are satisfied from the ring (network.cpp).
+    //
+    RING_BUFFER     ReadRing;
+    BYTE            ReadRingStorage[RX_RING_SIZE];
+    WDFQUEUE        PendingReadQueue;
+    WDFQUEUE        PendingWaitMaskQueue;
+    ULONG           PendingRxSignals;
+
+} DEVICE_CONTEXT, *PDEVICE_CONTEXT;
+'@ "D2 device ring fields"
+
+# ---------- serial.h : SERIAL_EV_* wait event bits ----------
+Apply-Literal "ComPort\serial.h" "`n`n`ntypedef struct _SERIAL_BAUD_RATE {" ("`n`n" + (Part "s_events.txt") + "`n`n`ntypedef struct _SERIAL_BAUD_RATE {") "S1 serial event bits"
+
+# ---------- network.cpp ----------
+Apply-Literal "ComPort\network.cpp" '            TerminateThread(deviceContext->ThreadEvent, 1);' '            TerminateThread(deviceContext->ThreadHandle, 1);' "N1 TerminateThread handle"
+
+Apply-Regex "ComPort\network.cpp" '(?s)// returns true if the request was completed else false\.\nvoid processRequest\(.*?\n\}(?=\n\nDWORD ClientThread)' (Part "n_helpers.txt") "N2 receive helpers"
+
+Apply-Regex "ComPort\network.cpp" '(?s)DWORD ClientThread\(PVOID context\)\n\{.*?\n\}(?=DWORD ServiceThread)' (Part "n_client.txt") "N3 client thread"
+Apply-Literal "ComPort\network.cpp" @'
+    CleanupNetwork(deviceContext);
+
+    struct addrinfo hints = { };
+'@ ("    CleanupNetwork(deviceContext);`n`n" + (Part "n_cfg_client.txt") + "`n`n    struct addrinfo hints = { };") "N4 configure client"
+
+Apply-Literal "ComPort\network.cpp" @'
+    CleanupNetwork(deviceContext);
+
+    sockaddr_in service;
+'@ ("    CleanupNetwork(deviceContext);`n`n" + (Part "n_cfg_service.txt") + "`n`n    sockaddr_in service;") "N5 configure service"
+
+# N6: n_cfg_service already declares 'int result'; the original bind line must not redeclare it.
+Apply-Literal "ComPort\network.cpp" '    int result = bind(deviceContext->ServiceSocket,' '    result = bind(deviceContext->ServiceSocket,' "N6 bind result redeclare"
+
+# ---------- queue.cpp ----------
+Apply-Literal "ComPort\queue.cpp" @'
 }
-Write-Host "ALL PATCH VERIFICATION OK"
+
+PCHAR
+SerialGetIoctlName(
+'@ ("}`n`n" + (Part "q_types.txt") + "`n`nPCHAR`nSerialGetIoctlName(") "Q1 serial types"
+
+Apply-Literal "ComPort\queue.cpp" @'
+    queueContext->WaitMaskQueue = queue;
+
+    RingBufferInitialize(&queueContext->RingBuffer,
+'@ ("    queueContext->WaitMaskQueue = queue;`n`n" + (Part "q_create.txt") + "`n`n    RingBufferInitialize(&queueContext->RingBuffer,") "Q2 queue create ring"
+
+Apply-Regex "ComPort\queue.cpp" '(?s)    case IOCTL_SERIAL_WAIT_ON_MASK:\n    \{.*?\n    \}(?=\n\n    case IOCTL_SERIAL_SET_WAIT_MASK:)' (Part "q_waitmask.txt") "Q3 wait-on-mask"
+
+Apply-Regex "ComPort\queue.cpp" '(?s)    case IOCTL_SERIAL_SET_QUEUE_SIZE:\n    case IOCTL_SERIAL_SET_DTR:.*?\n        status = STATUS_SUCCESS;\n        break;' (Part "q_ioctl.txt") "Q4 properties/modemstatus ioctls"
+
+[Console]::WriteLine("ALL PATCHES APPLIED")
