@@ -1,1 +1,1 @@
-CI trigger v4 - final RingBuffer receive engine build.
+CI trigger v5 - CRLF-safe patch, final RingBuffer build.
