@@ -16,8 +16,7 @@
     Condition="Exists('packages\Microsoft.Windows.SDK.CPP.10.0.28000.2526\build\native\Microsoft.Windows.SDK.cpp.props')"/> 
 
 <PropertyGroup>
-  <EnableTestSign>false</EnableTestSign>
-  <SignMode></SignMode>
+  <!-- EnableTestSign left at default (true): DriverSign signs dll + cat using WDKTestCert -->
   <SkipPackageVerification>true</SkipPackageVerification>
   <InfToolPath Condition="'$(InfToolPath)' == '' and '$(WDKContentRoot)' != ''">$(WDKContentRoot)\bin\10.0.28000.0\x64\</InfToolPath>
   <Inf2CatToolPath Condition="'$(Inf2CatToolPath)' == '' and '$(WDKContentRoot)' != ''">$(WDKContentRoot)\bin\10.0.28000.0\x86\</Inf2CatToolPath>
