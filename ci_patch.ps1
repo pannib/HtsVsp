@@ -4,7 +4,7 @@ $parts = Join-Path $root "ci_parts"
 
 function Read-Norm($p) { ([IO.File]::ReadAllText($p)) -replace "`r`n", "`n" }
 function Write-Lf($p, $t) { [IO.File]::WriteAllText($p, $t, (New-Object Text.UTF8Encoding($false))) }
-function Part($n) { Read-Norm (Join-Path $parts $n) }
+function Part($n) { (Read-Norm (Join-Path $parts $n)).TrimEnd("`n","`r") }
 
 function Apply-Literal($file, $old, $new, $tag) {
     $p = Join-Path $root $file
@@ -80,6 +80,7 @@ Apply-Literal "ComPort\network.cpp" '            TerminateThread(deviceContext->
 Apply-Regex "ComPort\network.cpp" '(?s)// returns true if the request was completed else false\.\nvoid processRequest\(.*?\n\}(?=\n\nDWORD ClientThread)' (Part "n_helpers.txt") "N2 receive helpers"
 
 Apply-Regex "ComPort\network.cpp" '(?s)DWORD ClientThread\(PVOID context\)\n\{.*?\n\}(?=DWORD ServiceThread)' (Part "n_client.txt") "N3 client thread"
+
 Apply-Literal "ComPort\network.cpp" @'
     CleanupNetwork(deviceContext);
 
