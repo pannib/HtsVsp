@@ -24,14 +24,35 @@ jobs:
       run: |
         winget install Microsoft.WindowsWDK.10.0.26100 -e --accept-source-agreements --accept-package-agreements --silent --disable-interactivity
         if ($LASTEXITCODE -ne 0) { Write-Host "::error::WDK install failed exit=$LASTEXITCODE"; exit $LASTEXITCODE }
-      
+
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v2
+
     - name: Build Driver (UDF)
       working-directory: ${{env.GITHUB_WORKSPACE}}
-      run: msbuild .\ComPort\htsvsp.vcxproj /p:Configuration=Debug /p:Platform=x64 /m
+      shell: powershell
+      run: |
+        msbuild .\ComPort\htsvsp.vcxproj /p:Configuration=Debug /p:Platform=x64 /m *> "$env:RUNNER_TEMP\driver_build.log"
+        $code = $LASTEXITCODE
+        if ($code -ne 0) {
+          $err = Get-Content "$env:RUNNER_TEMP\driver_build.log" -Raw
+          $short = $err.Substring(0, [Math]::Min(4000, $err.Length))
+          Write-Host "::error::Driver build failed exit=$code :: $short"
+          exit $code
+        }
 
     - name: Build vspControl
       working-directory: ${{env.GITHUB_WORKSPACE}}
-      run: msbuild .\App\vspControl\vspControl.vcxproj /p:Configuration=Debug /p:Platform=x64 /m
+      shell: powershell
+      run: |
+        msbuild .\App\vspControl\vspControl.vcxproj /p:Configuration=Debug /p:Platform=x64 /m *> "$env:RUNNER_TEMP\app_build.log"
+        $code = $LASTEXITCODE
+        if ($code -ne 0) {
+          $err = Get-Content "$env:RUNNER_TEMP\app_build.log" -Raw
+          $short = $err.Substring(0, [Math]::Min(4000, $err.Length))
+          Write-Host "::error::vspControl build failed exit=$code :: $short"
+          exit $code
+        }
 
     - name: Publish Release
       if: ${{ always() }}
